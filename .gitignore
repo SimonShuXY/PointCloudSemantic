@@ -1,0 +1,40 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# Local datasets and large archives are intentionally not versioned.
+data/
+datasets/
+archives/
+*.zip
+*.tgz
+*.tar
+*.tar.gz
+*.tar.bz2
+*.bin
+*.label
+*.pth
+*.pt
+*.ckpt
+
+# Runtime logs/checkpoints from full training runs.
+logs/
+work_dirs/
+checkpoints/
+wandb/
+tensorboard/
+
+# Local or private credentials.
+.env
+.env.*
+id_rsa*
+*.pem
+*.key
+*_token*
+*password*

@@ -1,0 +1,111 @@
+{
+  "status": "OK",
+  "sequence": "00",
+  "frames": [
+    "000000",
+    "000001",
+    "000002",
+    "000003",
+    "000004"
+  ],
+  "num_points": 2048,
+  "num_centers": 64,
+  "image_width": 480,
+  "steps": 100,
+  "lr": 0.0005,
+  "weight_decay": 0.0001,
+  "seed": 17,
+  "initial_eval_loss": 3.3341782093048096,
+  "final_eval_loss": 0.11279311776161194,
+  "initial_eval_acc": 0.07703927159309387,
+  "final_eval_acc": 0.964753270149231,
+  "initial_eval_mean_loss": 3.3462682723999024,
+  "final_eval_mean_loss": 0.14698416590690613,
+  "initial_eval_mean_acc": 0.07719623744487762,
+  "final_eval_mean_acc": 0.9560464978218078,
+  "initial_eval_by_frame": [
+    {
+      "frame": "000000",
+      "loss": 3.3341782093048096,
+      "valid_acc": 0.07703927159309387,
+      "valid_labels": 1986
+    },
+    {
+      "frame": "000001",
+      "loss": 3.3841655254364014,
+      "valid_acc": 0.065085768699646,
+      "valid_labels": 1982
+    },
+    {
+      "frame": "000002",
+      "loss": 3.334597110748291,
+      "valid_acc": 0.08565636724233627,
+      "valid_labels": 1973
+    },
+    {
+      "frame": "000003",
+      "loss": 3.2992029190063477,
+      "valid_acc": 0.08084891736507416,
+      "valid_labels": 1979
+    },
+    {
+      "frame": "000004",
+      "loss": 3.379197597503662,
+      "valid_acc": 0.07735086232423782,
+      "valid_labels": 1978
+    }
+  ],
+  "final_eval_by_frame": [
+    {
+      "frame": "000000",
+      "loss": 0.11279311776161194,
+      "valid_acc": 0.964753270149231,
+      "valid_labels": 1986
+    },
+    {
+      "frame": "000001",
+      "loss": 0.15517322719097137,
+      "valid_acc": 0.9576185345649719,
+      "valid_labels": 1982
+    },
+    {
+      "frame": "000002",
+      "loss": 0.13250696659088135,
+      "valid_acc": 0.9609732031822205,
+      "valid_labels": 1973
+    },
+    {
+      "frame": "000003",
+      "loss": 0.143859401345253,
+      "valid_acc": 0.9565436840057373,
+      "valid_labels": 1979
+    },
+    {
+      "frame": "000004",
+      "loss": 0.190588116645813,
+      "valid_acc": 0.9403437972068787,
+      "valid_labels": 1978
+    }
+  ],
+  "train_first_loss": 3.5629971027374268,
+  "train_final_loss": 0.009180068038403988,
+  "train_best_loss": 0.00719514349475503,
+  "train_final_acc": 0.9984833598136902,
+  "raw_points_first_frame": 124668,
+  "valid_labels_first_sample": 1986,
+  "cuda_max_memory_gb": 0.957,
+  "outputs": [
+    "overfit_log.jsonl",
+    "loss_curve.png",
+    "initial_bev_ground_truth.png",
+    "initial_bev_prediction.png",
+    "initial_image_lidar_depth_projection.png",
+    "initial_image_ipfp_extra_projection.png",
+    "final_bev_ground_truth.png",
+    "final_bev_prediction.png",
+    "final_image_lidar_depth_projection.png",
+    "final_image_ipfp_extra_projection.png",
+    "summary.json",
+    "OVERFIT_NOTES.md"
+  ]
+}

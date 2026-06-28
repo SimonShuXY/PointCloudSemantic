@@ -1,0 +1,49 @@
+{
+  "status": "OK",
+  "sequence": "00",
+  "frame": "000000",
+  "velodyne": "/root/autodl-tmp/ipfp_repro/data/semantic_kitti/dataset/sequences/00/velodyne/000000.bin",
+  "image": "/root/autodl-tmp/ipfp_repro/data/semantic_kitti/dataset/sequences/00/image_2/000000.png",
+  "calib": "/root/autodl-tmp/ipfp_repro/data/semantic_kitti/dataset/sequences/00/calib.txt",
+  "raw_points": 124668,
+  "selected_points": 8192,
+  "projected_selected_points": 4096,
+  "valid_labels": 7928,
+  "image_shape": [
+    3,
+    194,
+    640
+  ],
+  "depth_p5_p95": [
+    6.3972392082214355,
+    36.57146453857422
+  ],
+  "lidar_logits_shape": [
+    8192,
+    19
+  ],
+  "lidar_ce_loss": 3.4166371822357178,
+  "ipfp_extra_coord_shape": [
+    256,
+    3
+  ],
+  "ipfp_extra_feat_shape": [
+    256,
+    32
+  ],
+  "fused_logits_shape": [
+    8192,
+    19
+  ],
+  "fused_ce_loss": 3.4194138050079346,
+  "extra_points_projected": 255,
+  "cuda_max_memory_gb": 0.277,
+  "outputs": [
+    "image_lidar_depth_projection.png",
+    "image_ipfp_extra_projection.png",
+    "bev_ground_truth_labels.png",
+    "bev_random_init_prediction.png",
+    "bev_ipfp_extra_points.png",
+    "summary.json"
+  ]
+}

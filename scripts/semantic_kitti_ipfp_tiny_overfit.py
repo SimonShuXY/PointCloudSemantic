@@ -1,0 +1,640 @@
+#!/usr/bin/env python
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import time
+from pathlib import Path
+
+import numpy as np
+import torch
+import torch.nn.functional as F
+from PIL import Image, ImageDraw
+
+
+THIS_DIR = Path(__file__).resolve().parent
+if str(THIS_DIR) not in sys.path:
+    sys.path.insert(0, str(THIS_DIR))
+
+from semantic_kitti_ipfp_visualize import (  # noqa: E402
+    LEARNING_MAP,
+    as_4x4,
+    depth_color,
+    draw_bev,
+    draw_projection,
+    grid_coord_from_coord,
+    parse_calib,
+    project_kitti,
+)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Tiny-overfit PTv3/IPFP on one or a few SemanticKITTI frames.")
+    parser.add_argument("--root", default="/root/autodl-tmp/ipfp_repro")
+    parser.add_argument("--sequence", default="00")
+    parser.add_argument("--frames", nargs="+", default=["000000"])
+    parser.add_argument("--num-points", type=int, default=2048)
+    parser.add_argument("--num-centers", type=int, default=64)
+    parser.add_argument("--image-width", type=int, default=480)
+    parser.add_argument("--grid-size", type=float, default=0.2)
+    parser.add_argument("--steps", type=int, default=40)
+    parser.add_argument("--lr", type=float, default=5e-4)
+    parser.add_argument("--weight-decay", type=float, default=1e-4)
+    parser.add_argument("--seed", type=int, default=17)
+    parser.add_argument("--device", default="cuda")
+    parser.add_argument("--output-dir", default=None)
+    parser.add_argument("--viz-frame-count", type=int, default=8)
+    return parser.parse_args()
+
+
+def compact_frame_label(frames: list[str]) -> str:
+    if not frames:
+        return "none"
+    try:
+        values = [int(frame) for frame in frames]
+    except ValueError:
+        joined = "-".join(frames)
+        return joined if len(joined) <= 120 else f"{frames[0]}-{frames[-1]}_n{len(frames)}"
+    width = max(len(frame) for frame in frames)
+    contiguous = values == list(range(values[0], values[0] + len(values)))
+    if len(values) == 1:
+        return f"{values[0]:0{width}d}"
+    if contiguous:
+        return f"{values[0]:0{width}d}-{values[-1]:0{width}d}"
+    joined = "-".join(frames)
+    return joined if len(joined) <= 120 else f"{values[0]:0{width}d}-{values[-1]:0{width}d}_n{len(values)}"
+
+
+def remap_labels(labels_raw: np.ndarray) -> np.ndarray:
+    return np.vectorize(lambda x: LEARNING_MAP.get(int(x), -1))(labels_raw).astype(np.int64)
+
+
+def load_sample(args: argparse.Namespace, frame: str, sample_seed: int) -> dict:
+    data_root = Path(args.root) / "data/semantic_kitti/dataset/sequences" / args.sequence
+    velodyne_path = data_root / "velodyne" / f"{frame}.bin"
+    label_path = data_root / "labels" / f"{frame}.label"
+    image_path = data_root / "image_2" / f"{frame}.png"
+    calib_path = data_root / "calib.txt"
+    for path in [velodyne_path, label_path, image_path, calib_path]:
+        if not path.exists():
+            raise FileNotFoundError(path)
+
+    scan = np.fromfile(velodyne_path, dtype=np.float32).reshape(-1, 4)
+    labels_raw = np.fromfile(label_path, dtype=np.uint32).reshape(-1) & 0xFFFF
+    labels = remap_labels(labels_raw)
+
+    image = Image.open(image_path).convert("RGB")
+    orig_w, orig_h = image.size
+    new_w = args.image_width
+    new_h = int(round(orig_h * new_w / orig_w))
+    image_resized = image.resize((new_w, new_h), Image.BILINEAR)
+
+    calib = parse_calib(calib_path)
+    p2 = calib["P2"].copy()
+    p2[0, :] *= new_w / orig_w
+    p2[1, :] *= new_h / orig_h
+    tr = calib["Tr"].copy()
+    lidar_to_cam_4 = as_4x4(tr)
+    intrinsics = p2[:, :3].copy()
+
+    uv_all, _, valid_all = project_kitti(scan[:, :3], p2, tr, (new_h, new_w))
+    valid_idx = np.flatnonzero(valid_all)
+    invalid_idx = np.flatnonzero(~valid_all)
+    if valid_idx.shape[0] < 64:
+        raise RuntimeError(f"Too few projected points in frame {frame}: {valid_idx.shape[0]}")
+
+    rng = np.random.default_rng(sample_seed)
+    n = min(args.num_points, scan.shape[0])
+    take_valid = min(valid_idx.shape[0], max(n // 2, min(n, 512)))
+    chosen_valid = rng.choice(valid_idx, size=take_valid, replace=False)
+    remaining = n - take_valid
+    if remaining > 0:
+        pool = invalid_idx if invalid_idx.shape[0] >= remaining else np.setdiff1d(np.arange(scan.shape[0]), chosen_valid)
+        chosen_other = rng.choice(pool, size=remaining, replace=pool.shape[0] < remaining)
+        chosen = np.concatenate([chosen_valid, chosen_other])
+    else:
+        chosen = chosen_valid
+    rng.shuffle(chosen)
+
+    coord_np = scan[chosen, :3].astype(np.float32)
+    intensity_np = scan[chosen, 3:4].astype(np.float32)
+    segment_np = labels[chosen].astype(np.int64)
+    uv_sel, depth_sel, valid_sel = project_kitti(coord_np, p2, tr, (new_h, new_w))
+    projected_depth = depth_sel[valid_sel]
+    if projected_depth.shape[0] < 16:
+        raise RuntimeError(f"Too few selected projected points in frame {frame}: {projected_depth.shape[0]}")
+    d_low, d_high = np.percentile(projected_depth, [5, 95]).astype(np.float32)
+    yy = np.linspace(0.0, 1.0, new_h, dtype=np.float32)[:, None]
+    xx = np.linspace(0.0, 1.0, new_w, dtype=np.float32)[None, :]
+    metric_depth = d_low + (d_high - d_low) * (0.20 + 0.55 * yy + 0.25 * xx)
+    metric_depth = np.clip(metric_depth, max(float(d_low), 1e-3), max(float(d_high), 1e-3))
+
+    image_np = np.asarray(image_resized).astype(np.float32) / 255.0
+    return {
+        "frame": frame,
+        "velodyne": str(velodyne_path),
+        "image": str(image_path),
+        "calib": str(calib_path),
+        "raw_points": int(scan.shape[0]),
+        "coord_np": coord_np,
+        "intensity_np": intensity_np,
+        "segment_np": segment_np,
+        "image_pil": image_resized,
+        "image_chw_np": np.transpose(image_np, (2, 0, 1)).copy(),
+        "metric_depth_np": metric_depth.astype(np.float32),
+        "intrinsics_np": intrinsics.astype(np.float32),
+        "lidar_to_cam_np": lidar_to_cam_4.astype(np.float32),
+        "p2": p2,
+        "tr": tr,
+        "uv_sel": uv_sel,
+        "depth_sel": depth_sel,
+        "valid_sel": valid_sel,
+        "depth_p5_p95": [float(d_low), float(d_high)],
+    }
+
+
+def sample_to_tensors(sample: dict, device: str) -> dict:
+    coord = torch.from_numpy(sample["coord_np"]).to(device)
+    intensity = torch.from_numpy(sample["intensity_np"]).to(device)
+    segment = torch.from_numpy(sample["segment_np"]).to(device)
+    image_chw = torch.from_numpy(sample["image_chw_np"]).to(device)
+    metric_depth = torch.from_numpy(sample["metric_depth_np"]).to(device)
+    intrinsics = torch.from_numpy(sample["intrinsics_np"]).to(device)
+    lidar_to_cam = torch.from_numpy(sample["lidar_to_cam_np"]).to(device)
+    return {
+        "coord": coord,
+        "intensity": intensity,
+        "segment": segment,
+        "image_chw": image_chw,
+        "metric_depth": metric_depth,
+        "intrinsics": intrinsics,
+        "lidar_to_cam": lidar_to_cam,
+    }
+
+
+def make_generator(device: torch.device | str, seed: int) -> torch.Generator:
+    device_obj = torch.device(device)
+    generator = torch.Generator(device=device_obj.type)
+    generator.manual_seed(seed)
+    return generator
+
+
+def fused_forward(
+    model,
+    ipfp,
+    point_cls,
+    tensors: dict,
+    grid_size: float,
+    num_centers: int,
+    generator_seed: int,
+) -> tuple[torch.Tensor, dict]:
+    coord = tensors["coord"]
+    intensity = tensors["intensity"]
+    feat = torch.cat([coord, intensity], dim=1)
+    origin = coord.min(dim=0).values
+    grid_coord = grid_coord_from_coord(coord, origin, grid_size)
+    lidar_input = {
+        "coord": coord,
+        "grid_coord": grid_coord,
+        "feat": feat,
+        "offset": torch.tensor([coord.shape[0]], dtype=torch.long, device=coord.device),
+    }
+    generator = make_generator(coord.device, generator_seed)
+    extra = ipfp(
+        image_chw=tensors["image_chw"],
+        metric_depth_hw=tensors["metric_depth"],
+        points_lidar=coord,
+        intrinsics=tensors["intrinsics"],
+        lidar_to_camera=tensors["lidar_to_cam"],
+        num_centers=num_centers,
+        generator=generator,
+    )
+    point = point_cls(lidar_input)
+    point.serialization(order=model.backbone.order, shuffle_orders=model.backbone.shuffle_orders)
+    point.sparsify()
+    point = model.backbone.embedding(point)
+    extra_grid = grid_coord_from_coord(extra["coord"], origin, grid_size)
+    merged = point_cls(
+        {
+            "coord": torch.cat([point.coord, extra["coord"]], dim=0),
+            "grid_coord": torch.cat([point.grid_coord, extra_grid], dim=0),
+            "feat": torch.cat([point.feat, extra["feat"]], dim=0),
+            "offset": torch.tensor([point.feat.shape[0] + extra["feat"].shape[0]], dtype=torch.long, device=coord.device),
+        }
+    )
+    merged.serialization(order=model.backbone.order, shuffle_orders=model.backbone.shuffle_orders)
+    merged.sparsify()
+    merged = model.backbone.enc(merged)
+    merged = model.backbone.dec(merged)
+    logits = model.seg_head(merged.feat[: coord.shape[0]])
+    return logits, extra
+
+
+def evaluate_samples(
+    model,
+    ipfp,
+    point_cls,
+    samples: list[dict],
+    args: argparse.Namespace,
+    seed_base: int,
+) -> tuple[list[dict], np.ndarray, dict]:
+    model.eval()
+    ipfp.eval()
+    rows = []
+    first_pred = None
+    first_extra = None
+    with torch.no_grad():
+        for index, sample in enumerate(samples):
+            tensors = sample_to_tensors(sample, args.device)
+            logits, extra = fused_forward(
+                model,
+                ipfp,
+                point_cls,
+                tensors,
+                args.grid_size,
+                args.num_centers,
+                seed_base + index,
+            )
+            loss = F.cross_entropy(logits, tensors["segment"], ignore_index=-1)
+            pred = logits.argmax(dim=1)
+            valid = tensors["segment"] >= 0
+            acc = (
+                (pred[valid] == tensors["segment"][valid]).float().mean()
+                if valid.any()
+                else torch.tensor(0.0, device=pred.device)
+            )
+            rows.append(
+                {
+                    "frame": sample["frame"],
+                    "loss": float(loss.detach().cpu().item()),
+                    "valid_acc": float(acc.detach().cpu().item()),
+                    "valid_labels": int(valid.detach().cpu().sum().item()),
+                }
+            )
+            if index == 0:
+                first_pred = pred.detach().cpu().numpy()
+                first_extra = extra
+    if first_pred is None or first_extra is None:
+        raise RuntimeError("No samples evaluated")
+    return rows, first_pred, first_extra
+
+
+def draw_loss_curve(records: list[dict], output: Path) -> None:
+    width, height = 900, 520
+    margin_l, margin_t, margin_r, margin_b = 70, 40, 30, 70
+    canvas = Image.new("RGB", (width, height), (255, 255, 255))
+    draw = ImageDraw.Draw(canvas)
+    draw.rectangle((margin_l, margin_t, width - margin_r, height - margin_b), outline=(30, 30, 30), width=2)
+    if not records:
+        canvas.save(output)
+        return
+    steps = np.array([r["step"] for r in records], dtype=np.float32)
+    losses = np.array([r["loss"] for r in records], dtype=np.float32)
+    x_min, x_max = float(steps.min()), float(steps.max())
+    y_min, y_max = float(losses.min()), float(losses.max())
+    if x_max <= x_min:
+        x_max = x_min + 1.0
+    pad = max((y_max - y_min) * 0.12, 0.05)
+    y_min -= pad
+    y_max += pad
+
+    def xy(step: float, loss: float) -> tuple[int, int]:
+        x = margin_l + int(round((step - x_min) / (x_max - x_min) * (width - margin_l - margin_r)))
+        y = height - margin_b - int(round((loss - y_min) / (y_max - y_min) * (height - margin_t - margin_b)))
+        return x, y
+
+    points = [xy(float(s), float(l)) for s, l in zip(steps, losses)]
+    if len(points) > 1:
+        draw.line(points, fill=(30, 95, 190), width=3)
+    for point in points:
+        draw.ellipse((point[0] - 3, point[1] - 3, point[0] + 3, point[1] + 3), fill=(30, 95, 190))
+    draw.text((margin_l, 12), "Tiny overfit loss", fill=(10, 10, 10))
+    draw.text((margin_l, height - 42), f"step {int(x_min)} to {int(x_max)}", fill=(10, 10, 10))
+    draw.text((8, margin_t), f"{y_max:.3f}", fill=(10, 10, 10))
+    draw.text((8, height - margin_b - 8), f"{y_min:.3f}", fill=(10, 10, 10))
+    canvas.save(output)
+
+
+def save_prediction_artifacts(
+    output_dir: Path,
+    prefix: str,
+    sample: dict,
+    pred: np.ndarray,
+    extra: dict | None = None,
+) -> None:
+    draw_bev(sample["coord_np"], sample["segment_np"], output_dir / f"{prefix}_bev_ground_truth.png", "GT labels")
+    draw_bev(sample["coord_np"], pred.astype(np.int64), output_dir / f"{prefix}_bev_prediction.png", f"{prefix} prediction")
+    draw_projection(
+        sample["image_pil"],
+        sample["uv_sel"][sample["valid_sel"]],
+        depth_color(sample["depth_sel"][sample["valid_sel"]]),
+        output_dir / f"{prefix}_image_lidar_depth_projection.png",
+        radius=1,
+    )
+    if extra is not None:
+        extra_np = extra["coord"].detach().cpu().numpy()
+        uv_extra, _, valid_extra = project_kitti(extra_np, sample["p2"], sample["tr"], sample["image_pil"].size[::-1])
+        colors = np.tile(np.array([[255, 255, 0]], dtype=np.uint8), (int(valid_extra.sum()), 1))
+        draw_projection(
+            sample["image_pil"],
+            uv_extra[valid_extra],
+            colors,
+            output_dir / f"{prefix}_image_ipfp_extra_projection.png",
+            radius=2,
+        )
+
+
+def save_selected_frame_visualizations(
+    output_dir: Path,
+    model,
+    ipfp,
+    point_cls,
+    samples: list[dict],
+    args: argparse.Namespace,
+    seed_base: int,
+) -> list[str]:
+    count = min(max(args.viz_frame_count, 0), len(samples))
+    if count == 0:
+        return []
+    if count == len(samples):
+        indices = list(range(len(samples)))
+    else:
+        indices = sorted(set(np.linspace(0, len(samples) - 1, count, dtype=int).tolist()))
+    vis_dir = output_dir / "selected_frame_visualizations"
+    vis_dir.mkdir(parents=True, exist_ok=True)
+    outputs: list[str] = []
+    cards = []
+    model.eval()
+    ipfp.eval()
+    with torch.no_grad():
+        for index in indices:
+            sample = samples[index]
+            tensors = sample_to_tensors(sample, args.device)
+            logits, _ = fused_forward(
+                model,
+                ipfp,
+                point_cls,
+                tensors,
+                args.grid_size,
+                args.num_centers,
+                seed_base + index,
+            )
+            pred = logits.argmax(dim=1).detach().cpu().numpy()
+            gt_path = vis_dir / f"frame_{sample['frame']}_gt.png"
+            pred_path = vis_dir / f"frame_{sample['frame']}_final_prediction.png"
+            draw_bev(sample["coord_np"], sample["segment_np"], gt_path, f"frame {sample['frame']} GT")
+            draw_bev(sample["coord_np"], pred.astype(np.int64), pred_path, f"frame {sample['frame']} final")
+            outputs.extend([str(gt_path.relative_to(output_dir)), str(pred_path.relative_to(output_dir))])
+            cards.append((sample["frame"], gt_path, pred_path))
+
+    tile = 190
+    pad = 16
+    title_h = 24
+    card_w = tile * 2 + pad * 3
+    card_h = tile + title_h + pad * 2
+    cols = min(4, len(cards))
+    rows = int(np.ceil(len(cards) / cols))
+    montage = Image.new("RGB", (cols * card_w, rows * card_h), (248, 248, 248))
+    draw = ImageDraw.Draw(montage)
+    for card_index, (frame, gt_path, pred_path) in enumerate(cards):
+        col = card_index % cols
+        row = card_index // cols
+        x0 = col * card_w
+        y0 = row * card_h
+        draw.rectangle((x0 + 4, y0 + 4, x0 + card_w - 4, y0 + card_h - 4), outline=(210, 210, 210))
+        draw.text((x0 + pad, y0 + 6), f"frame {frame}: GT | final", fill=(20, 20, 20))
+        gt_img = Image.open(gt_path).convert("RGB").resize((tile, tile), Image.BILINEAR)
+        pred_img = Image.open(pred_path).convert("RGB").resize((tile, tile), Image.BILINEAR)
+        montage.paste(gt_img, (x0 + pad, y0 + title_h + pad))
+        montage.paste(pred_img, (x0 + pad * 2 + tile, y0 + title_h + pad))
+    montage_path = output_dir / "selected_frames_final_montage.png"
+    montage.save(montage_path)
+    outputs.append(str(montage_path.relative_to(output_dir)))
+    return outputs
+
+
+def main() -> None:
+    args = parse_args()
+    root = Path(args.root)
+    pointcept_root = root / "src/Pointcept"
+    frame_label = compact_frame_label(args.frames)
+    output_dir = Path(
+        args.output_dir
+        or root
+        / "results/semantic_kitti_repro"
+        / time.strftime("%Y%m%d_%H%M%S")
+        / f"tiny_overfit_seq{args.sequence}_{frame_label}"
+    )
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if str(pointcept_root) not in sys.path:
+        sys.path.insert(0, str(pointcept_root))
+    ipfp_root = root / "ipfp_minimal"
+    if str(ipfp_root) not in sys.path:
+        sys.path.insert(0, str(ipfp_root))
+
+    from ipfp import IPFPFeatureBackProjector
+    from pointcept.models import build_model
+    from pointcept.models.utils.structure import Point
+    from pointcept.utils.config import Config
+
+    if args.device == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("CUDA requested but unavailable")
+
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
+        torch.cuda.reset_peak_memory_stats()
+
+    samples = [load_sample(args, frame, args.seed + idx * 1009) for idx, frame in enumerate(args.frames)]
+    if not samples:
+        raise RuntimeError("No samples loaded")
+
+    cfg = Config.fromfile(str(pointcept_root / "configs/nuscenes/semseg-pt-v3m1-0-base.py"))
+    cfg.model.num_classes = 19
+    cfg.model.backbone.enable_flash = False
+    cfg.model.backbone.enc_patch_size = (64, 64, 64, 64, 64)
+    cfg.model.backbone.dec_patch_size = (64, 64, 64, 64)
+    model = build_model(cfg.model).to(args.device)
+    ipfp = IPFPFeatureBackProjector(
+        image_channels=3,
+        hidden_channels=64,
+        out_channels=cfg.model.backbone.enc_channels[0],
+        patch_size=9,
+        lower_percentile=5,
+        upper_percentile=95,
+    ).to(args.device)
+    optimizer = torch.optim.AdamW(
+        list(model.parameters()) + list(ipfp.parameters()),
+        lr=args.lr,
+        weight_decay=args.weight_decay,
+    )
+
+    initial_eval_by_frame, initial_pred, initial_extra = evaluate_samples(
+        model,
+        ipfp,
+        Point,
+        samples,
+        args,
+        args.seed + 999,
+    )
+    save_prediction_artifacts(output_dir, "initial", samples[0], initial_pred, initial_extra)
+
+    records = []
+    log_path = output_dir / "overfit_log.jsonl"
+    for step in range(1, args.steps + 1):
+        sample = samples[(step - 1) % len(samples)]
+        tensors = sample_to_tensors(sample, args.device)
+        model.train()
+        ipfp.train()
+        optimizer.zero_grad(set_to_none=True)
+        logits, _ = fused_forward(
+            model,
+            ipfp,
+            Point,
+            tensors,
+            args.grid_size,
+            args.num_centers,
+            args.seed + step,
+        )
+        loss = F.cross_entropy(logits, tensors["segment"], ignore_index=-1)
+        loss.backward()
+        grad_norm = torch.nn.utils.clip_grad_norm_(list(model.parameters()) + list(ipfp.parameters()), max_norm=5.0)
+        optimizer.step()
+        pred = logits.argmax(dim=1)
+        valid = tensors["segment"] >= 0
+        acc = (pred[valid] == tensors["segment"][valid]).float().mean() if valid.any() else torch.tensor(0.0, device=pred.device)
+        record = {
+            "step": step,
+            "frame": sample["frame"],
+            "loss": float(loss.detach().cpu().item()),
+            "valid_acc": float(acc.detach().cpu().item()),
+            "grad_norm": float(grad_norm.detach().cpu().item() if torch.is_tensor(grad_norm) else grad_norm),
+            "lr": args.lr,
+        }
+        records.append(record)
+        with log_path.open("a") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+        if step == 1 or step % max(1, args.steps // 10) == 0 or step == args.steps:
+            print(json.dumps(record, ensure_ascii=False), flush=True)
+
+    final_eval_by_frame, final_pred, final_extra = evaluate_samples(
+        model,
+        ipfp,
+        Point,
+        samples,
+        args,
+        args.seed + 999,
+    )
+    save_prediction_artifacts(output_dir, "final", samples[0], final_pred, final_extra)
+    selected_viz_outputs = save_selected_frame_visualizations(
+        output_dir,
+        model,
+        ipfp,
+        Point,
+        samples,
+        args,
+        args.seed + 999,
+    )
+    draw_loss_curve(records, output_dir / "loss_curve.png")
+    initial_eval_mean_loss = float(np.mean([row["loss"] for row in initial_eval_by_frame]))
+    final_eval_mean_loss = float(np.mean([row["loss"] for row in final_eval_by_frame]))
+    initial_eval_mean_acc = float(np.mean([row["valid_acc"] for row in initial_eval_by_frame]))
+    final_eval_mean_acc = float(np.mean([row["valid_acc"] for row in final_eval_by_frame]))
+    outputs = [
+        "overfit_log.jsonl",
+        "loss_curve.png",
+        "initial_bev_ground_truth.png",
+        "initial_bev_prediction.png",
+        "initial_image_lidar_depth_projection.png",
+        "initial_image_ipfp_extra_projection.png",
+        "final_bev_ground_truth.png",
+        "final_bev_prediction.png",
+        "final_image_lidar_depth_projection.png",
+        "final_image_ipfp_extra_projection.png",
+        "summary.json",
+        "OVERFIT_NOTES.md",
+        *selected_viz_outputs,
+    ]
+
+    summary = {
+        "status": "OK",
+        "sequence": args.sequence,
+        "frames": args.frames,
+        "frame_label": frame_label,
+        "num_points": args.num_points,
+        "num_centers": args.num_centers,
+        "image_width": args.image_width,
+        "viz_frame_count": args.viz_frame_count,
+        "steps": args.steps,
+        "lr": args.lr,
+        "weight_decay": args.weight_decay,
+        "seed": args.seed,
+        "initial_eval_loss": initial_eval_by_frame[0]["loss"],
+        "final_eval_loss": final_eval_by_frame[0]["loss"],
+        "initial_eval_acc": initial_eval_by_frame[0]["valid_acc"],
+        "final_eval_acc": final_eval_by_frame[0]["valid_acc"],
+        "initial_eval_mean_loss": initial_eval_mean_loss,
+        "final_eval_mean_loss": final_eval_mean_loss,
+        "initial_eval_mean_acc": initial_eval_mean_acc,
+        "final_eval_mean_acc": final_eval_mean_acc,
+        "initial_eval_by_frame": initial_eval_by_frame,
+        "final_eval_by_frame": final_eval_by_frame,
+        "train_first_loss": records[0]["loss"] if records else None,
+        "train_final_loss": records[-1]["loss"] if records else None,
+        "train_best_loss": min((r["loss"] for r in records), default=None),
+        "train_final_acc": records[-1]["valid_acc"] if records else None,
+        "raw_points_first_frame": samples[0]["raw_points"],
+        "valid_labels_first_sample": int((samples[0]["segment_np"] >= 0).sum()),
+        "cuda_max_memory_gb": round(torch.cuda.max_memory_allocated() / (1024**3), 3)
+        if args.device == "cuda"
+        else 0.0,
+        "outputs": outputs,
+    }
+    (output_dir / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n")
+    notes = [
+        "# SemanticKITTI PTv3/IPFP Tiny Overfit",
+        "",
+        "## What this validates",
+        "",
+        "- Loads real SemanticKITTI LiDAR, labels, KITTI color image, and calibration.",
+        "- Projects LiDAR into the image frame and generates IPFP auxiliary image-backprojected points.",
+        "- Runs the PTv3/IPFP fused forward path with gradients, backward, and optimizer updates.",
+        "- Checks whether a tiny training set can be memorized at least partially.",
+        "",
+        "## Important caveat",
+        "",
+        "This is a reproduction plumbing test, not a benchmark result. A useful run should show the training loss moving down, but it does not measure generalization.",
+        "",
+        "## Summary",
+        "",
+        f"- Initial eval loss, first frame: {summary['initial_eval_loss']:.6f}",
+        f"- Final eval loss, first frame: {summary['final_eval_loss']:.6f}",
+        f"- Initial eval mean loss: {summary['initial_eval_mean_loss']:.6f}",
+        f"- Final eval mean loss: {summary['final_eval_mean_loss']:.6f}",
+        f"- Initial eval mean accuracy: {summary['initial_eval_mean_acc']:.6f}",
+        f"- Final eval mean accuracy: {summary['final_eval_mean_acc']:.6f}",
+        f"- First train loss: {summary['train_first_loss']:.6f}",
+        f"- Final train loss: {summary['train_final_loss']:.6f}",
+        f"- Best train loss: {summary['train_best_loss']:.6f}",
+        f"- Final train valid accuracy: {summary['train_final_acc']:.6f}",
+        f"- CUDA peak memory GB: {summary['cuda_max_memory_gb']:.3f}",
+        f"- Selected visualization frames: {len(selected_viz_outputs) // 2 if selected_viz_outputs else 0}",
+        "",
+        "## Per-frame Eval",
+        "",
+    ]
+    for before, after in zip(initial_eval_by_frame, final_eval_by_frame):
+        notes.append(
+            f"- Frame {before['frame']}: loss {before['loss']:.6f} -> {after['loss']:.6f}, "
+            f"accuracy {before['valid_acc']:.6f} -> {after['valid_acc']:.6f}"
+        )
+    notes.append("")
+    (output_dir / "OVERFIT_NOTES.md").write_text("\n".join(notes))
+    print(json.dumps(summary, indent=2, ensure_ascii=False), flush=True)
+
+
+if __name__ == "__main__":
+    main()
