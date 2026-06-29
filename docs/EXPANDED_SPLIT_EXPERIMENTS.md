@@ -69,7 +69,9 @@ PTv3 + IPFP:
 
 ## Next Steps
 
-1. Add IPFP ablations: fewer extra points, no extra points with image features only, and extra points detached from gradients.
-2. Replace pseudo metric depth with a stronger depth source before any larger training run.
-3. Add a class-frequency-aware report so rare classes do not dominate conclusions.
+The first IPFP ablations are complete; see `IPFP_ABLATION_EXPERIMENTS.md`.
+
+1. Add an image-feature gate and sweep feature weights on the `100/50` split.
+2. Keep `zero-feat64` as a geometry-only control.
+3. Replace pseudo metric depth with a stronger depth source before any larger training run.
 4. Only after the fused route recovers on `100/50`, scale to larger splits or sequence `08`.

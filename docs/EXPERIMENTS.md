@@ -74,6 +74,22 @@ and mIoU to `summary.json`.
 The expanded split reverses the small `50/20` signal: the current fused route is worse
 than LiDAR-only on holdout mIoU. See `EXPANDED_SPLIT_EXPERIMENTS.md`.
 
+## IPFP Ablations
+
+The first IPFP diagnostics use the same `100/50` split and compare extra-point count,
+zeroed extra features, and detached IPFP features.
+
+| Route | Holdout final overall acc | Holdout final mIoU |
+| --- | ---: | ---: |
+| PTv3 LiDAR-only baseline | 61.51% | 15.30% |
+| PTv3 + IPFP learned features, 64 centers | 56.67% | 13.41% |
+| PTv3 + IPFP learned features, 16 centers | 59.70% | 14.70% |
+| PTv3 + IPFP zero extra features, 64 centers | 61.95% | 15.33% |
+| PTv3 + IPFP detached branch, 64 centers | 61.58% | 15.10% |
+
+The diagnostic signal is that learned image features are currently harmful, while
+extra geometry/tokens are not inherently harmful. See `IPFP_ABLATION_EXPERIMENTS.md`.
+
 ## 50-Frame Visualization
 
 The 50-frame run includes a selected-frame montage:
@@ -90,7 +106,7 @@ The 50-frame run includes a selected-frame montage:
 
 ## Next Steps
 
-1. Diagnose the fused route with IPFP ablations on the `100/50` split.
+1. Add an image-feature gate and sweep feature weights on the `100/50` split.
 2. Replace pseudo metric depth with a real depth estimator or calibrated depth recovery.
 3. Convert the script path into a proper SemanticKITTI dataloader and trainer.
 4. Scale only after the fused route becomes competitive on `100/50`.

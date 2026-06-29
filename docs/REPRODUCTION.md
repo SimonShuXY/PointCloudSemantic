@@ -197,4 +197,51 @@ python scripts/semantic_kitti_ipfp_tiny_overfit.py \
 # Repeat with --mode lidar-only for the control route.
 ```
 
+Ablation examples:
+
+```bash
+# Fewer IPFP extra centers.
+python scripts/semantic_kitti_ipfp_tiny_overfit.py \
+  --root "$ROOT" \
+  --sequence 00 \
+  --frames "${TRAIN_FRAMES[@]}" \
+  --eval-frames "${HOLDOUT_FRAMES[@]}" \
+  --num-points 2048 \
+  --num-centers 16 \
+  --extra-feature-mode learned \
+  --image-width 480 \
+  --steps 1000 \
+  --mode fused \
+  --device cuda
+
+# Keep extra coordinates but remove learned extra feature content.
+python scripts/semantic_kitti_ipfp_tiny_overfit.py \
+  --root "$ROOT" \
+  --sequence 00 \
+  --frames "${TRAIN_FRAMES[@]}" \
+  --eval-frames "${HOLDOUT_FRAMES[@]}" \
+  --num-points 2048 \
+  --num-centers 64 \
+  --extra-feature-mode zeros \
+  --image-width 480 \
+  --steps 1000 \
+  --mode fused \
+  --device cuda
+
+# Keep learned features but detach the IPFP branch from gradients.
+python scripts/semantic_kitti_ipfp_tiny_overfit.py \
+  --root "$ROOT" \
+  --sequence 00 \
+  --frames "${TRAIN_FRAMES[@]}" \
+  --eval-frames "${HOLDOUT_FRAMES[@]}" \
+  --num-points 2048 \
+  --num-centers 64 \
+  --extra-feature-mode learned \
+  --ipfp-detach \
+  --image-width 480 \
+  --steps 1000 \
+  --mode fused \
+  --device cuda
+```
+
 The tiny-overfit runs are sanity checks. They validate the training path, not benchmark generalization.

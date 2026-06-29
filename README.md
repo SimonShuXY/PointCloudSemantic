@@ -11,6 +11,7 @@ This repository contains:
 - `docs/EXPERIMENTS.md`: summary of completed sanity checks and tiny-overfit runs.
 - `docs/HOLDOUT_EXPERIMENTS.md`: first LiDAR-only vs PTv3+IPFP train/holdout comparison.
 - `docs/EXPANDED_SPLIT_EXPERIMENTS.md`: larger split comparison with sampled mIoU.
+- `docs/IPFP_ABLATION_EXPERIMENTS.md`: diagnosis of IPFP extra-point and feature variants.
 
 ## What Is Implemented
 
@@ -61,6 +62,19 @@ small-split signal:
 
 This suggests the current minimal IPFP scaffold needs depth/image-branch diagnosis
 before scaling to heavier training.
+
+The first IPFP ablations on the same `100/50` split show where the fused route is
+breaking:
+
+| Route | Holdout final overall acc | Holdout final mIoU |
+| --- | ---: | ---: |
+| PTv3 LiDAR-only | 61.51% | 15.30% |
+| PTv3 + IPFP learned features, 64 centers | 56.67% | 13.41% |
+| PTv3 + IPFP zero extra features, 64 centers | 61.95% | 15.33% |
+| PTv3 + IPFP detached branch, 64 centers | 61.58% | 15.10% |
+
+The current bottleneck is therefore the learned image-feature branch and its training
+coupling, not simply the presence of extra back-projected points.
 
 Example 50-frame visualization:
 
@@ -113,7 +127,8 @@ python scripts/semantic_kitti_ipfp_tiny_overfit.py \
 
 See `docs/REPRODUCTION.md` for more detail. For the LiDAR-only vs IPFP controls,
 see `docs/CONTROL_EXPERIMENTS.md`, `docs/HOLDOUT_EXPERIMENTS.md`, and
-`docs/EXPANDED_SPLIT_EXPERIMENTS.md`.
+`docs/EXPANDED_SPLIT_EXPERIMENTS.md`. For IPFP diagnostics, see
+`docs/IPFP_ABLATION_EXPERIMENTS.md`.
 
 ## Data
 

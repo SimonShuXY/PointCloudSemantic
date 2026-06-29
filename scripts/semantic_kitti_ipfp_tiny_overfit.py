@@ -71,6 +71,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", default=None)
     parser.add_argument("--viz-frame-count", type=int, default=8)
     parser.add_argument("--mode", choices=["fused", "lidar-only"], default="fused")
+    parser.add_argument("--extra-feature-mode", choices=["learned", "zeros"], default="learned")
+    parser.add_argument("--ipfp-detach", action="store_true")
     return parser.parse_args()
 
 
@@ -283,6 +285,8 @@ def fused_forward(
     grid_size: float,
     num_centers: int,
     generator_seed: int,
+    extra_feature_mode: str,
+    ipfp_detach: bool,
 ) -> tuple[torch.Tensor, dict]:
     coord = tensors["coord"]
     intensity = tensors["intensity"]
@@ -305,6 +309,17 @@ def fused_forward(
         num_centers=num_centers,
         generator=generator,
     )
+    if ipfp_detach:
+        extra = {
+            **extra,
+            "coord": extra["coord"].detach(),
+            "feat": extra["feat"].detach(),
+        }
+    if extra_feature_mode == "zeros":
+        extra = {
+            **extra,
+            "feat": torch.zeros_like(extra["feat"]),
+        }
     point = point_cls(lidar_input)
     point.serialization(order=model.backbone.order, shuffle_orders=model.backbone.shuffle_orders)
     point.sparsify()
@@ -372,6 +387,8 @@ def run_forward(
             args.grid_size,
             args.num_centers,
             generator_seed,
+            args.extra_feature_mode,
+            args.ipfp_detach,
         )
     return lidar_only_forward(model, point_cls, tensors, args.grid_size)
 
@@ -833,6 +850,8 @@ def main() -> None:
         "eval_frame_label": eval_frame_label if args.eval_frames else None,
         "num_points": args.num_points,
         "num_centers": args.num_centers,
+        "extra_feature_mode": args.extra_feature_mode,
+        "ipfp_detach": args.ipfp_detach,
         "image_width": args.image_width,
         "viz_frame_count": args.viz_frame_count,
         "steps": args.steps,
