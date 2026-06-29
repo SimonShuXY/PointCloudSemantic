@@ -45,6 +45,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--output-dir", default=None)
     parser.add_argument("--viz-frame-count", type=int, default=8)
+    parser.add_argument("--mode", choices=["fused", "lidar-only"], default="fused")
     return parser.parse_args()
 
 
@@ -231,6 +232,56 @@ def fused_forward(
     return logits, extra
 
 
+def lidar_only_forward(
+    model,
+    point_cls,
+    tensors: dict,
+    grid_size: float,
+) -> tuple[torch.Tensor, None]:
+    coord = tensors["coord"]
+    intensity = tensors["intensity"]
+    feat = torch.cat([coord, intensity], dim=1)
+    origin = coord.min(dim=0).values
+    grid_coord = grid_coord_from_coord(coord, origin, grid_size)
+    lidar_input = {
+        "coord": coord,
+        "grid_coord": grid_coord,
+        "feat": feat,
+        "offset": torch.tensor([coord.shape[0]], dtype=torch.long, device=coord.device),
+    }
+    point = point_cls(lidar_input)
+    point.serialization(order=model.backbone.order, shuffle_orders=model.backbone.shuffle_orders)
+    point.sparsify()
+    point = model.backbone.embedding(point)
+    point = model.backbone.enc(point)
+    point = model.backbone.dec(point)
+    logits = model.seg_head(point.feat[: coord.shape[0]])
+    return logits, None
+
+
+def run_forward(
+    model,
+    ipfp,
+    point_cls,
+    tensors: dict,
+    args: argparse.Namespace,
+    generator_seed: int,
+) -> tuple[torch.Tensor, dict | None]:
+    if args.mode == "fused":
+        if ipfp is None:
+            raise RuntimeError("IPFP module is required in fused mode")
+        return fused_forward(
+            model,
+            ipfp,
+            point_cls,
+            tensors,
+            args.grid_size,
+            args.num_centers,
+            generator_seed,
+        )
+    return lidar_only_forward(model, point_cls, tensors, args.grid_size)
+
+
 def evaluate_samples(
     model,
     ipfp,
@@ -240,20 +291,20 @@ def evaluate_samples(
     seed_base: int,
 ) -> tuple[list[dict], np.ndarray, dict]:
     model.eval()
-    ipfp.eval()
+    if ipfp is not None:
+        ipfp.eval()
     rows = []
     first_pred = None
     first_extra = None
     with torch.no_grad():
         for index, sample in enumerate(samples):
             tensors = sample_to_tensors(sample, args.device)
-            logits, extra = fused_forward(
+            logits, extra = run_forward(
                 model,
                 ipfp,
                 point_cls,
                 tensors,
-                args.grid_size,
-                args.num_centers,
+                args,
                 seed_base + index,
             )
             loss = F.cross_entropy(logits, tensors["segment"], ignore_index=-1)
@@ -276,7 +327,8 @@ def evaluate_samples(
                 first_pred = pred.detach().cpu().numpy()
                 first_extra = extra
     if first_pred is None or first_extra is None:
-        raise RuntimeError("No samples evaluated")
+        if first_pred is None:
+            raise RuntimeError("No samples evaluated")
     return rows, first_pred, first_extra
 
 
@@ -366,18 +418,18 @@ def save_selected_frame_visualizations(
     outputs: list[str] = []
     cards = []
     model.eval()
-    ipfp.eval()
+    if ipfp is not None:
+        ipfp.eval()
     with torch.no_grad():
         for index in indices:
             sample = samples[index]
             tensors = sample_to_tensors(sample, args.device)
-            logits, _ = fused_forward(
+            logits, _ = run_forward(
                 model,
                 ipfp,
                 point_cls,
                 tensors,
-                args.grid_size,
-                args.num_centers,
+                args,
                 seed_base + index,
             )
             pred = logits.argmax(dim=1).detach().cpu().numpy()
@@ -424,7 +476,7 @@ def main() -> None:
         or root
         / "results/semantic_kitti_repro"
         / time.strftime("%Y%m%d_%H%M%S")
-        / f"tiny_overfit_seq{args.sequence}_{frame_label}"
+        / f"tiny_overfit_{args.mode}_seq{args.sequence}_{frame_label}"
     )
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -458,16 +510,21 @@ def main() -> None:
     cfg.model.backbone.enc_patch_size = (64, 64, 64, 64, 64)
     cfg.model.backbone.dec_patch_size = (64, 64, 64, 64)
     model = build_model(cfg.model).to(args.device)
-    ipfp = IPFPFeatureBackProjector(
-        image_channels=3,
-        hidden_channels=64,
-        out_channels=cfg.model.backbone.enc_channels[0],
-        patch_size=9,
-        lower_percentile=5,
-        upper_percentile=95,
-    ).to(args.device)
+    ipfp = None
+    if args.mode == "fused":
+        ipfp = IPFPFeatureBackProjector(
+            image_channels=3,
+            hidden_channels=64,
+            out_channels=cfg.model.backbone.enc_channels[0],
+            patch_size=9,
+            lower_percentile=5,
+            upper_percentile=95,
+        ).to(args.device)
+    trainable_parameters = list(model.parameters())
+    if ipfp is not None:
+        trainable_parameters += list(ipfp.parameters())
     optimizer = torch.optim.AdamW(
-        list(model.parameters()) + list(ipfp.parameters()),
+        trainable_parameters,
         lr=args.lr,
         weight_decay=args.weight_decay,
     )
@@ -488,20 +545,20 @@ def main() -> None:
         sample = samples[(step - 1) % len(samples)]
         tensors = sample_to_tensors(sample, args.device)
         model.train()
-        ipfp.train()
+        if ipfp is not None:
+            ipfp.train()
         optimizer.zero_grad(set_to_none=True)
-        logits, _ = fused_forward(
+        logits, _ = run_forward(
             model,
             ipfp,
             Point,
             tensors,
-            args.grid_size,
-            args.num_centers,
+            args,
             args.seed + step,
         )
         loss = F.cross_entropy(logits, tensors["segment"], ignore_index=-1)
         loss.backward()
-        grad_norm = torch.nn.utils.clip_grad_norm_(list(model.parameters()) + list(ipfp.parameters()), max_norm=5.0)
+        grad_norm = torch.nn.utils.clip_grad_norm_(trainable_parameters, max_norm=5.0)
         optimizer.step()
         pred = logits.argmax(dim=1)
         valid = tensors["segment"] >= 0
@@ -549,19 +606,21 @@ def main() -> None:
         "initial_bev_ground_truth.png",
         "initial_bev_prediction.png",
         "initial_image_lidar_depth_projection.png",
-        "initial_image_ipfp_extra_projection.png",
         "final_bev_ground_truth.png",
         "final_bev_prediction.png",
         "final_image_lidar_depth_projection.png",
-        "final_image_ipfp_extra_projection.png",
         "summary.json",
         "OVERFIT_NOTES.md",
         *selected_viz_outputs,
     ]
+    if args.mode == "fused":
+        outputs.insert(5, "initial_image_ipfp_extra_projection.png")
+        outputs.insert(9, "final_image_ipfp_extra_projection.png")
 
     summary = {
         "status": "OK",
         "sequence": args.sequence,
+        "mode": args.mode,
         "frames": args.frames,
         "frame_label": frame_label,
         "num_points": args.num_points,
@@ -595,13 +654,13 @@ def main() -> None:
     }
     (output_dir / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n")
     notes = [
-        "# SemanticKITTI PTv3/IPFP Tiny Overfit",
+        f"# SemanticKITTI {args.mode} Tiny Overfit",
         "",
         "## What this validates",
         "",
         "- Loads real SemanticKITTI LiDAR, labels, KITTI color image, and calibration.",
-        "- Projects LiDAR into the image frame and generates IPFP auxiliary image-backprojected points.",
-        "- Runs the PTv3/IPFP fused forward path with gradients, backward, and optimizer updates.",
+        "- Projects LiDAR into the image frame for visualization sanity checks.",
+        "- Runs the selected PTv3 training path with gradients, backward, and optimizer updates.",
         "- Checks whether a tiny training set can be memorized at least partially.",
         "",
         "## Important caveat",

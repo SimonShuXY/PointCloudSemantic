@@ -1,0 +1,714 @@
+{
+  "status": "OK",
+  "sequence": "00",
+  "mode": "lidar-only",
+  "frames": [
+    "000000",
+    "000001",
+    "000002",
+    "000003",
+    "000004",
+    "000005",
+    "000006",
+    "000007",
+    "000008",
+    "000009",
+    "000010",
+    "000011",
+    "000012",
+    "000013",
+    "000014",
+    "000015",
+    "000016",
+    "000017",
+    "000018",
+    "000019",
+    "000020",
+    "000021",
+    "000022",
+    "000023",
+    "000024",
+    "000025",
+    "000026",
+    "000027",
+    "000028",
+    "000029",
+    "000030",
+    "000031",
+    "000032",
+    "000033",
+    "000034",
+    "000035",
+    "000036",
+    "000037",
+    "000038",
+    "000039",
+    "000040",
+    "000041",
+    "000042",
+    "000043",
+    "000044",
+    "000045",
+    "000046",
+    "000047",
+    "000048",
+    "000049"
+  ],
+  "frame_label": "000000-000049",
+  "num_points": 2048,
+  "num_centers": 64,
+  "image_width": 480,
+  "viz_frame_count": 8,
+  "steps": 500,
+  "lr": 0.0005,
+  "weight_decay": 0.0001,
+  "seed": 17,
+  "initial_eval_loss": 3.335353136062622,
+  "final_eval_loss": 0.3823051452636719,
+  "initial_eval_acc": 0.07653574645519257,
+  "final_eval_acc": 0.8650553822517395,
+  "initial_eval_mean_loss": 3.4866525316238404,
+  "final_eval_mean_loss": 0.324140884578228,
+  "initial_eval_mean_acc": 0.04923785548657179,
+  "final_eval_mean_acc": 0.8936342370510101,
+  "initial_eval_by_frame": [
+    {
+      "frame": "000000",
+      "loss": 3.335353136062622,
+      "valid_acc": 0.07653574645519257,
+      "valid_labels": 1986
+    },
+    {
+      "frame": "000001",
+      "loss": 3.3882415294647217,
+      "valid_acc": 0.060544904321432114,
+      "valid_labels": 1982
+    },
+    {
+      "frame": "000002",
+      "loss": 3.3362133502960205,
+      "valid_acc": 0.0846426784992218,
+      "valid_labels": 1973
+    },
+    {
+      "frame": "000003",
+      "loss": 3.299490213394165,
+      "valid_acc": 0.07781708240509033,
+      "valid_labels": 1979
+    },
+    {
+      "frame": "000004",
+      "loss": 3.381279706954956,
+      "valid_acc": 0.07381193339824677,
+      "valid_labels": 1978
+    },
+    {
+      "frame": "000005",
+      "loss": 3.42466402053833,
+      "valid_acc": 0.05329311639070511,
+      "valid_labels": 1989
+    },
+    {
+      "frame": "000006",
+      "loss": 3.404327630996704,
+      "valid_acc": 0.0639154464006424,
+      "valid_labels": 1987
+    },
+    {
+      "frame": "000007",
+      "loss": 3.3487765789031982,
+      "valid_acc": 0.07121364027261734,
+      "valid_labels": 1994
+    },
+    {
+      "frame": "000008",
+      "loss": 3.389984369277954,
+      "valid_acc": 0.06519559025764465,
+      "valid_labels": 1994
+    },
+    {
+      "frame": "000009",
+      "loss": 3.4050469398498535,
+      "valid_acc": 0.06572295725345612,
+      "valid_labels": 1978
+    },
+    {
+      "frame": "000010",
+      "loss": 3.374335289001465,
+      "valid_acc": 0.06974410265684128,
+      "valid_labels": 1993
+    },
+    {
+      "frame": "000011",
+      "loss": 3.374096155166626,
+      "valid_acc": 0.07192806899547577,
+      "valid_labels": 2002
+    },
+    {
+      "frame": "000012",
+      "loss": 3.3784594535827637,
+      "valid_acc": 0.06793206930160522,
+      "valid_labels": 2002
+    },
+    {
+      "frame": "000013",
+      "loss": 3.401592493057251,
+      "valid_acc": 0.06906906515359879,
+      "valid_labels": 1998
+    },
+    {
+      "frame": "000014",
+      "loss": 3.423616409301758,
+      "valid_acc": 0.06559839844703674,
+      "valid_labels": 1997
+    },
+    {
+      "frame": "000015",
+      "loss": 3.438370943069458,
+      "valid_acc": 0.05530643090605736,
+      "valid_labels": 2007
+    },
+    {
+      "frame": "000016",
+      "loss": 3.4269073009490967,
+      "valid_acc": 0.05358036980032921,
+      "valid_labels": 1997
+    },
+    {
+      "frame": "000017",
+      "loss": 3.4489128589630127,
+      "valid_acc": 0.051863040775060654,
+      "valid_labels": 1986
+    },
+    {
+      "frame": "000018",
+      "loss": 3.472994565963745,
+      "valid_acc": 0.043303120881319046,
+      "valid_labels": 1986
+    },
+    {
+      "frame": "000019",
+      "loss": 3.4459872245788574,
+      "valid_acc": 0.06563126295804977,
+      "valid_labels": 1996
+    },
+    {
+      "frame": "000020",
+      "loss": 3.4762439727783203,
+      "valid_acc": 0.04332493618130684,
+      "valid_labels": 1985
+    },
+    {
+      "frame": "000021",
+      "loss": 3.4764153957366943,
+      "valid_acc": 0.045568354427814484,
+      "valid_labels": 1997
+    },
+    {
+      "frame": "000022",
+      "loss": 3.4940710067749023,
+      "valid_acc": 0.052099138498306274,
+      "valid_labels": 1977
+    },
+    {
+      "frame": "000023",
+      "loss": 3.4977166652679443,
+      "valid_acc": 0.05187032371759415,
+      "valid_labels": 2005
+    },
+    {
+      "frame": "000024",
+      "loss": 3.5364701747894287,
+      "valid_acc": 0.0355355367064476,
+      "valid_labels": 1998
+    },
+    {
+      "frame": "000025",
+      "loss": 3.505594491958618,
+      "valid_acc": 0.04050000011920929,
+      "valid_labels": 2000
+    },
+    {
+      "frame": "000026",
+      "loss": 3.53298282623291,
+      "valid_acc": 0.03788634017109871,
+      "valid_labels": 2006
+    },
+    {
+      "frame": "000027",
+      "loss": 3.5363566875457764,
+      "valid_acc": 0.03496503457427025,
+      "valid_labels": 2002
+    },
+    {
+      "frame": "000028",
+      "loss": 3.5465939044952393,
+      "valid_acc": 0.030378486961126328,
+      "valid_labels": 2008
+    },
+    {
+      "frame": "000029",
+      "loss": 3.558044910430908,
+      "valid_acc": 0.03648176044225693,
+      "valid_labels": 2001
+    },
+    {
+      "frame": "000030",
+      "loss": 3.5672762393951416,
+      "valid_acc": 0.03834661468863487,
+      "valid_labels": 2008
+    },
+    {
+      "frame": "000031",
+      "loss": 3.5873494148254395,
+      "valid_acc": 0.03293413296341896,
+      "valid_labels": 2004
+    },
+    {
+      "frame": "000032",
+      "loss": 3.559156894683838,
+      "valid_acc": 0.034825872629880905,
+      "valid_labels": 2010
+    },
+    {
+      "frame": "000033",
+      "loss": 3.549947738647461,
+      "valid_acc": 0.039940088987350464,
+      "valid_labels": 2003
+    },
+    {
+      "frame": "000034",
+      "loss": 3.589075803756714,
+      "valid_acc": 0.03229011595249176,
+      "valid_labels": 2013
+    },
+    {
+      "frame": "000035",
+      "loss": 3.552671432495117,
+      "valid_acc": 0.04252126067876816,
+      "valid_labels": 1999
+    },
+    {
+      "frame": "000036",
+      "loss": 3.543657064437866,
+      "valid_acc": 0.03711133450269699,
+      "valid_labels": 1994
+    },
+    {
+      "frame": "000037",
+      "loss": 3.5496368408203125,
+      "valid_acc": 0.041916169226169586,
+      "valid_labels": 2004
+    },
+    {
+      "frame": "000038",
+      "loss": 3.5610008239746094,
+      "valid_acc": 0.029116464778780937,
+      "valid_labels": 1992
+    },
+    {
+      "frame": "000039",
+      "loss": 3.570688009262085,
+      "valid_acc": 0.03296703100204468,
+      "valid_labels": 2002
+    },
+    {
+      "frame": "000040",
+      "loss": 3.5020840167999268,
+      "valid_acc": 0.04118533432483673,
+      "valid_labels": 1991
+    },
+    {
+      "frame": "000041",
+      "loss": 3.555752992630005,
+      "valid_acc": 0.03170608729124069,
+      "valid_labels": 1987
+    },
+    {
+      "frame": "000042",
+      "loss": 3.5727293491363525,
+      "valid_acc": 0.0359460823237896,
+      "valid_labels": 2003
+    },
+    {
+      "frame": "000043",
+      "loss": 3.588209629058838,
+      "valid_acc": 0.03306613117456436,
+      "valid_labels": 1996
+    },
+    {
+      "frame": "000044",
+      "loss": 3.5741546154022217,
+      "valid_acc": 0.04282115772366524,
+      "valid_labels": 1985
+    },
+    {
+      "frame": "000045",
+      "loss": 3.5457470417022705,
+      "valid_acc": 0.04413239657878876,
+      "valid_labels": 1994
+    },
+    {
+      "frame": "000046",
+      "loss": 3.6102519035339355,
+      "valid_acc": 0.038922157138586044,
+      "valid_labels": 2004
+    },
+    {
+      "frame": "000047",
+      "loss": 3.5538783073425293,
+      "valid_acc": 0.040419161319732666,
+      "valid_labels": 2004
+    },
+    {
+      "frame": "000048",
+      "loss": 3.5753369331359863,
+      "valid_acc": 0.0340510755777359,
+      "valid_labels": 1997
+    },
+    {
+      "frame": "000049",
+      "loss": 3.5648813247680664,
+      "valid_acc": 0.04241516813635826,
+      "valid_labels": 2004
+    }
+  ],
+  "final_eval_by_frame": [
+    {
+      "frame": "000000",
+      "loss": 0.3823051452636719,
+      "valid_acc": 0.8650553822517395,
+      "valid_labels": 1986
+    },
+    {
+      "frame": "000001",
+      "loss": 0.4085571765899658,
+      "valid_acc": 0.8531786203384399,
+      "valid_labels": 1982
+    },
+    {
+      "frame": "000002",
+      "loss": 0.46182548999786377,
+      "valid_acc": 0.8342625498771667,
+      "valid_labels": 1973
+    },
+    {
+      "frame": "000003",
+      "loss": 0.4947797954082489,
+      "valid_acc": 0.8246589303016663,
+      "valid_labels": 1979
+    },
+    {
+      "frame": "000004",
+      "loss": 0.5725991129875183,
+      "valid_acc": 0.8088979125022888,
+      "valid_labels": 1978
+    },
+    {
+      "frame": "000005",
+      "loss": 0.5374131798744202,
+      "valid_acc": 0.8396179676055908,
+      "valid_labels": 1989
+    },
+    {
+      "frame": "000006",
+      "loss": 0.5520840287208557,
+      "valid_acc": 0.8394564390182495,
+      "valid_labels": 1987
+    },
+    {
+      "frame": "000007",
+      "loss": 0.6276932954788208,
+      "valid_acc": 0.814944863319397,
+      "valid_labels": 1994
+    },
+    {
+      "frame": "000008",
+      "loss": 0.5177344679832458,
+      "valid_acc": 0.8445336222648621,
+      "valid_labels": 1994
+    },
+    {
+      "frame": "000009",
+      "loss": 0.5423144698143005,
+      "valid_acc": 0.8432760834693909,
+      "valid_labels": 1978
+    },
+    {
+      "frame": "000010",
+      "loss": 0.5322888493537903,
+      "valid_acc": 0.8524836897850037,
+      "valid_labels": 1993
+    },
+    {
+      "frame": "000011",
+      "loss": 0.4852406084537506,
+      "valid_acc": 0.8426573276519775,
+      "valid_labels": 2002
+    },
+    {
+      "frame": "000012",
+      "loss": 0.5400452017784119,
+      "valid_acc": 0.8356643319129944,
+      "valid_labels": 2002
+    },
+    {
+      "frame": "000013",
+      "loss": 0.44672495126724243,
+      "valid_acc": 0.849349319934845,
+      "valid_labels": 1998
+    },
+    {
+      "frame": "000014",
+      "loss": 0.458369642496109,
+      "valid_acc": 0.8577867150306702,
+      "valid_labels": 1997
+    },
+    {
+      "frame": "000015",
+      "loss": 0.36611422896385193,
+      "valid_acc": 0.8744394779205322,
+      "valid_labels": 2007
+    },
+    {
+      "frame": "000016",
+      "loss": 0.40661826729774475,
+      "valid_acc": 0.8582874536514282,
+      "valid_labels": 1997
+    },
+    {
+      "frame": "000017",
+      "loss": 0.41215014457702637,
+      "valid_acc": 0.8751258850097656,
+      "valid_labels": 1986
+    },
+    {
+      "frame": "000018",
+      "loss": 0.4449346661567688,
+      "valid_acc": 0.8595166206359863,
+      "valid_labels": 1986
+    },
+    {
+      "frame": "000019",
+      "loss": 0.4194416105747223,
+      "valid_acc": 0.8717435002326965,
+      "valid_labels": 1996
+    },
+    {
+      "frame": "000020",
+      "loss": 0.36080390214920044,
+      "valid_acc": 0.8861461281776428,
+      "valid_labels": 1985
+    },
+    {
+      "frame": "000021",
+      "loss": 0.39260053634643555,
+      "valid_acc": 0.8703054785728455,
+      "valid_labels": 1997
+    },
+    {
+      "frame": "000022",
+      "loss": 0.30791425704956055,
+      "valid_acc": 0.9013656973838806,
+      "valid_labels": 1977
+    },
+    {
+      "frame": "000023",
+      "loss": 0.3082534968852997,
+      "valid_acc": 0.8922693133354187,
+      "valid_labels": 2005
+    },
+    {
+      "frame": "000024",
+      "loss": 0.3050740957260132,
+      "valid_acc": 0.891391396522522,
+      "valid_labels": 1998
+    },
+    {
+      "frame": "000025",
+      "loss": 0.2584971487522125,
+      "valid_acc": 0.9115000367164612,
+      "valid_labels": 2000
+    },
+    {
+      "frame": "000026",
+      "loss": 0.2977854609489441,
+      "valid_acc": 0.8948155641555786,
+      "valid_labels": 2006
+    },
+    {
+      "frame": "000027",
+      "loss": 0.27688342332839966,
+      "valid_acc": 0.8961038589477539,
+      "valid_labels": 2002
+    },
+    {
+      "frame": "000028",
+      "loss": 0.2824675440788269,
+      "valid_acc": 0.900896430015564,
+      "valid_labels": 2008
+    },
+    {
+      "frame": "000029",
+      "loss": 0.20439645648002625,
+      "valid_acc": 0.9200400114059448,
+      "valid_labels": 2001
+    },
+    {
+      "frame": "000030",
+      "loss": 0.3027228116989136,
+      "valid_acc": 0.9063745141029358,
+      "valid_labels": 2008
+    },
+    {
+      "frame": "000031",
+      "loss": 0.24516573548316956,
+      "valid_acc": 0.9126746654510498,
+      "valid_labels": 2004
+    },
+    {
+      "frame": "000032",
+      "loss": 0.25062042474746704,
+      "valid_acc": 0.911940336227417,
+      "valid_labels": 2010
+    },
+    {
+      "frame": "000033",
+      "loss": 0.23512621223926544,
+      "valid_acc": 0.9186220765113831,
+      "valid_labels": 2003
+    },
+    {
+      "frame": "000034",
+      "loss": 0.21481509506702423,
+      "valid_acc": 0.9220070242881775,
+      "valid_labels": 2013
+    },
+    {
+      "frame": "000035",
+      "loss": 0.16823992133140564,
+      "valid_acc": 0.9369685053825378,
+      "valid_labels": 1999
+    },
+    {
+      "frame": "000036",
+      "loss": 0.18809084594249725,
+      "valid_acc": 0.9353059530258179,
+      "valid_labels": 1994
+    },
+    {
+      "frame": "000037",
+      "loss": 0.2152082473039627,
+      "valid_acc": 0.9271457195281982,
+      "valid_labels": 2004
+    },
+    {
+      "frame": "000038",
+      "loss": 0.20314103364944458,
+      "valid_acc": 0.9297188520431519,
+      "valid_labels": 1992
+    },
+    {
+      "frame": "000039",
+      "loss": 0.14419186115264893,
+      "valid_acc": 0.9470528960227966,
+      "valid_labels": 2002
+    },
+    {
+      "frame": "000040",
+      "loss": 0.16917166113853455,
+      "valid_acc": 0.9397287964820862,
+      "valid_labels": 1991
+    },
+    {
+      "frame": "000041",
+      "loss": 0.1602938175201416,
+      "valid_acc": 0.9496728181838989,
+      "valid_labels": 1987
+    },
+    {
+      "frame": "000042",
+      "loss": 0.15045158565044403,
+      "valid_acc": 0.951073408126831,
+      "valid_labels": 2003
+    },
+    {
+      "frame": "000043",
+      "loss": 0.13002212345600128,
+      "valid_acc": 0.9549098610877991,
+      "valid_labels": 1996
+    },
+    {
+      "frame": "000044",
+      "loss": 0.1427701711654663,
+      "valid_acc": 0.953148603439331,
+      "valid_labels": 1985
+    },
+    {
+      "frame": "000045",
+      "loss": 0.12776488065719604,
+      "valid_acc": 0.9573721289634705,
+      "valid_labels": 1994
+    },
+    {
+      "frame": "000046",
+      "loss": 0.13770705461502075,
+      "valid_acc": 0.9545907974243164,
+      "valid_labels": 2004
+    },
+    {
+      "frame": "000047",
+      "loss": 0.13410207629203796,
+      "valid_acc": 0.9540917873382568,
+      "valid_labels": 2004
+    },
+    {
+      "frame": "000048",
+      "loss": 0.12322388589382172,
+      "valid_acc": 0.9604406952857971,
+      "valid_labels": 1997
+    },
+    {
+      "frame": "000049",
+      "loss": 0.16030412912368774,
+      "valid_acc": 0.9491018056869507,
+      "valid_labels": 2004
+    }
+  ],
+  "train_first_loss": 3.5532705783843994,
+  "train_final_loss": 0.17129294574260712,
+  "train_best_loss": 0.12977340817451477,
+  "train_final_acc": 0.938622772693634,
+  "raw_points_first_frame": 124668,
+  "valid_labels_first_sample": 1986,
+  "cuda_max_memory_gb": 0.902,
+  "outputs": [
+    "overfit_log.jsonl",
+    "loss_curve.png",
+    "initial_bev_ground_truth.png",
+    "initial_bev_prediction.png",
+    "initial_image_lidar_depth_projection.png",
+    "final_bev_ground_truth.png",
+    "final_bev_prediction.png",
+    "final_image_lidar_depth_projection.png",
+    "summary.json",
+    "OVERFIT_NOTES.md",
+    "selected_frame_visualizations/frame_000000_gt.png",
+    "selected_frame_visualizations/frame_000000_final_prediction.png",
+    "selected_frame_visualizations/frame_000007_gt.png",
+    "selected_frame_visualizations/frame_000007_final_prediction.png",
+    "selected_frame_visualizations/frame_000014_gt.png",
+    "selected_frame_visualizations/frame_000014_final_prediction.png",
+    "selected_frame_visualizations/frame_000021_gt.png",
+    "selected_frame_visualizations/frame_000021_final_prediction.png",
+    "selected_frame_visualizations/frame_000028_gt.png",
+    "selected_frame_visualizations/frame_000028_final_prediction.png",
+    "selected_frame_visualizations/frame_000035_gt.png",
+    "selected_frame_visualizations/frame_000035_final_prediction.png",
+    "selected_frame_visualizations/frame_000042_gt.png",
+    "selected_frame_visualizations/frame_000042_final_prediction.png",
+    "selected_frame_visualizations/frame_000049_gt.png",
+    "selected_frame_visualizations/frame_000049_final_prediction.png",
+    "selected_frames_final_montage.png"
+  ]
+}

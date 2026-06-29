@@ -35,6 +35,7 @@ The included small-scale SemanticKITTI overfit runs were used as plumbing checks
 | 5-frame tiny overfit | 5 | 100 | 3.3463 -> 0.1470 | 7.72% -> 95.60% |
 | 20-frame tiny overfit | 20 | 200 | 3.3933 -> 0.1702 | 6.55% -> 94.16% |
 | 50-frame tiny overfit | 50 | 500 | 3.4847 -> 0.3492 | 4.94% -> 89.14% |
+| 50-frame LiDAR-only control | 50 | 500 | 3.4867 -> 0.3241 | 4.92% -> 89.36% |
 
 Example 50-frame visualization:
 
@@ -85,7 +86,7 @@ python scripts/semantic_kitti_ipfp_tiny_overfit.py \
   --device cuda
 ```
 
-See `docs/REPRODUCTION.md` for more detail.
+See `docs/REPRODUCTION.md` for more detail. For the first LiDAR-only vs IPFP control result, see `docs/CONTROL_EXPERIMENTS.md`.
 
 ## Data
 

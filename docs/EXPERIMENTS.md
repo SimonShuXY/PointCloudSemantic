@@ -41,6 +41,11 @@ The included `results/semantic_kitti_repro/ipfp_semantic_kitti_seq00_000000` dir
 | `tiny_overfit_seq00_000000-000004_20260628_115300` | 5 | 100 | 3.3463 | 0.1470 | 7.72% | 95.60% |
 | `tiny_overfit_seq00_000000-000019_20260628_115458` | 20 | 200 | 3.3933 | 0.1702 | 6.55% | 94.16% |
 | `tiny_overfit_seq00_000000-000049_20260628_120319` | 50 | 500 | 3.4847 | 0.3492 | 4.94% | 89.14% |
+| `tiny_overfit_lidar-only_seq00_000000-000049_20260629_111458` | 50 | 500 | 3.4867 | 0.3241 | 4.92% | 89.36% |
+
+## LiDAR-Only Control
+
+The 50-frame LiDAR-only control slightly outperformed the current minimal PTv3+IPFP route on tiny-overfit final mean eval accuracy and loss. See `CONTROL_EXPERIMENTS.md` for the comparison table and interpretation.
 
 ## 50-Frame Visualization
 
@@ -58,7 +63,7 @@ The 50-frame run includes a selected-frame montage:
 ## Next Steps
 
 1. Convert tiny-overfit code into a proper SemanticKITTI dataloader and trainer.
-2. Add a LiDAR-only baseline using the same sampled frames and training schedule.
+2. Add a train/holdout split comparison for LiDAR-only vs PTv3+IPFP.
 3. Replace pseudo metric depth with a real depth estimator or calibrated depth recovery.
 4. Scale from tiny-overfit to train/validation split experiments.
 5. Add quantitative mIoU evaluation on SemanticKITTI sequence 08.

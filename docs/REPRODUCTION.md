@@ -72,6 +72,8 @@ Expected outputs include:
 
 ## Tiny Overfit
 
+The default mode is `fused`, which runs PTv3 with IPFP extra points/features. Use `--mode lidar-only` for the LiDAR-only control route.
+
 Single frame:
 
 ```bash
@@ -119,6 +121,28 @@ python scripts/semantic_kitti_ipfp_tiny_overfit.py \
   --steps 500 \
   --lr 5e-4 \
   --viz-frame-count 8 \
+  --mode fused \
+  --device cuda
+```
+
+LiDAR-only control with the same 50-frame schedule:
+
+```bash
+python scripts/semantic_kitti_ipfp_tiny_overfit.py \
+  --root "$ROOT" \
+  --sequence 00 \
+  --frames 000000 000001 000002 000003 000004 000005 000006 000007 000008 000009 \
+           000010 000011 000012 000013 000014 000015 000016 000017 000018 000019 \
+           000020 000021 000022 000023 000024 000025 000026 000027 000028 000029 \
+           000030 000031 000032 000033 000034 000035 000036 000037 000038 000039 \
+           000040 000041 000042 000043 000044 000045 000046 000047 000048 000049 \
+  --num-points 2048 \
+  --num-centers 64 \
+  --image-width 480 \
+  --steps 500 \
+  --lr 5e-4 \
+  --viz-frame-count 8 \
+  --mode lidar-only \
   --device cuda
 ```
 
