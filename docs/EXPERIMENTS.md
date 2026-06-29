@@ -47,6 +47,19 @@ The included `results/semantic_kitti_repro/ipfp_semantic_kitti_seq00_000000` dir
 
 The 50-frame LiDAR-only control slightly outperformed the current minimal PTv3+IPFP route on tiny-overfit final mean eval accuracy and loss. See `CONTROL_EXPERIMENTS.md` for the comparison table and interpretation.
 
+## Train/Holdout Control
+
+The first small generalization check trains on `seq00` frames `000000-000049` and
+evaluates on held-out frames `000050-000069`.
+
+| Route | Train-frame final mean loss | Train-frame final mean acc | Holdout final mean loss | Holdout final mean acc |
+| --- | ---: | ---: | ---: | ---: |
+| PTv3 LiDAR-only | 0.3519 | 89.31% | 0.7379 | 82.60% |
+| PTv3 + IPFP | 0.3361 | 89.31% | 0.6166 | 84.94% |
+
+The fused route has nearly identical train-frame accuracy and better holdout loss and
+accuracy in this small control. See `HOLDOUT_EXPERIMENTS.md` for artifacts and caveats.
+
 ## 50-Frame Visualization
 
 The 50-frame run includes a selected-frame montage:
@@ -62,8 +75,8 @@ The 50-frame run includes a selected-frame montage:
 
 ## Next Steps
 
-1. Convert tiny-overfit code into a proper SemanticKITTI dataloader and trainer.
-2. Add a train/holdout split comparison for LiDAR-only vs PTv3+IPFP.
+1. Repeat the train/holdout comparison with multiple seeds.
+2. Convert the script path into a proper SemanticKITTI dataloader and trainer.
 3. Replace pseudo metric depth with a real depth estimator or calibrated depth recovery.
-4. Scale from tiny-overfit to train/validation split experiments.
+4. Scale from tiny-overfit to larger train/validation split experiments.
 5. Add quantitative mIoU evaluation on SemanticKITTI sequence 08.

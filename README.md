@@ -9,6 +9,7 @@ This repository contains:
 - `results/`: small qualitative and JSON outputs from the reproduction runs. Raw datasets are not included.
 - `docs/DATASETS.md`: dataset download links used in the experiments.
 - `docs/EXPERIMENTS.md`: summary of completed sanity checks and tiny-overfit runs.
+- `docs/HOLDOUT_EXPERIMENTS.md`: first LiDAR-only vs PTv3+IPFP train/holdout comparison.
 
 ## What Is Implemented
 
@@ -36,6 +37,18 @@ The included small-scale SemanticKITTI overfit runs were used as plumbing checks
 | 20-frame tiny overfit | 20 | 200 | 3.3933 -> 0.1702 | 6.55% -> 94.16% |
 | 50-frame tiny overfit | 50 | 500 | 3.4847 -> 0.3492 | 4.94% -> 89.14% |
 | 50-frame LiDAR-only control | 50 | 500 | 3.4867 -> 0.3241 | 4.92% -> 89.36% |
+
+The first train/holdout control uses `seq00` frames `000000-000049` for training and
+frames `000050-000069` only for evaluation:
+
+| Route | Train-frame final mean acc | Holdout final mean loss | Holdout final mean acc |
+| --- | ---: | ---: | ---: |
+| PTv3 LiDAR-only | 89.31% | 0.7379 | 82.60% |
+| PTv3 + IPFP | 89.31% | 0.6166 | 84.94% |
+
+This is still a small reproduction check rather than a benchmark result, but it is a
+more useful signal than pure tiny-overfit: the fused route matches train-frame accuracy
+and improves holdout accuracy by about 2.34 percentage points.
 
 Example 50-frame visualization:
 
@@ -86,7 +99,8 @@ python scripts/semantic_kitti_ipfp_tiny_overfit.py \
   --device cuda
 ```
 
-See `docs/REPRODUCTION.md` for more detail. For the first LiDAR-only vs IPFP control result, see `docs/CONTROL_EXPERIMENTS.md`.
+See `docs/REPRODUCTION.md` for more detail. For the first LiDAR-only vs IPFP
+controls, see `docs/CONTROL_EXPERIMENTS.md` and `docs/HOLDOUT_EXPERIMENTS.md`.
 
 ## Data
 

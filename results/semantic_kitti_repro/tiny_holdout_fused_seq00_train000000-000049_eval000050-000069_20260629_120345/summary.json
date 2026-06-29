@@ -1,0 +1,1012 @@
+{
+  "status": "OK",
+  "sequence": "00",
+  "mode": "fused",
+  "frames": [
+    "000000",
+    "000001",
+    "000002",
+    "000003",
+    "000004",
+    "000005",
+    "000006",
+    "000007",
+    "000008",
+    "000009",
+    "000010",
+    "000011",
+    "000012",
+    "000013",
+    "000014",
+    "000015",
+    "000016",
+    "000017",
+    "000018",
+    "000019",
+    "000020",
+    "000021",
+    "000022",
+    "000023",
+    "000024",
+    "000025",
+    "000026",
+    "000027",
+    "000028",
+    "000029",
+    "000030",
+    "000031",
+    "000032",
+    "000033",
+    "000034",
+    "000035",
+    "000036",
+    "000037",
+    "000038",
+    "000039",
+    "000040",
+    "000041",
+    "000042",
+    "000043",
+    "000044",
+    "000045",
+    "000046",
+    "000047",
+    "000048",
+    "000049"
+  ],
+  "eval_frames": [
+    "000050",
+    "000051",
+    "000052",
+    "000053",
+    "000054",
+    "000055",
+    "000056",
+    "000057",
+    "000058",
+    "000059",
+    "000060",
+    "000061",
+    "000062",
+    "000063",
+    "000064",
+    "000065",
+    "000066",
+    "000067",
+    "000068",
+    "000069"
+  ],
+  "frame_label": "000000-000049",
+  "eval_frame_label": "000050-000069",
+  "num_points": 2048,
+  "num_centers": 64,
+  "image_width": 480,
+  "viz_frame_count": 8,
+  "steps": 500,
+  "lr": 0.0005,
+  "weight_decay": 0.0001,
+  "seed": 17,
+  "initial_eval_loss": 3.333907127380371,
+  "final_eval_loss": 0.36191126704216003,
+  "initial_eval_acc": 0.07653574645519257,
+  "final_eval_acc": 0.8705941438674927,
+  "initial_eval_mean_loss": 3.484573426246643,
+  "final_eval_mean_loss": 0.33611984342336654,
+  "initial_eval_mean_acc": 0.04944814667105675,
+  "final_eval_mean_acc": 0.8930867230892181,
+  "initial_eval_by_frame": [
+    {
+      "frame": "000000",
+      "loss": 3.333907127380371,
+      "valid_acc": 0.07653574645519257,
+      "valid_labels": 1986
+    },
+    {
+      "frame": "000001",
+      "loss": 3.384582757949829,
+      "valid_acc": 0.062058527022600174,
+      "valid_labels": 1982
+    },
+    {
+      "frame": "000002",
+      "loss": 3.330714225769043,
+      "valid_acc": 0.0846426784992218,
+      "valid_labels": 1973
+    },
+    {
+      "frame": "000003",
+      "loss": 3.297497510910034,
+      "valid_acc": 0.08135421574115753,
+      "valid_labels": 1979
+    },
+    {
+      "frame": "000004",
+      "loss": 3.3800206184387207,
+      "valid_acc": 0.07684530317783356,
+      "valid_labels": 1978
+    },
+    {
+      "frame": "000005",
+      "loss": 3.4277212619781494,
+      "valid_acc": 0.05580694228410721,
+      "valid_labels": 1989
+    },
+    {
+      "frame": "000006",
+      "loss": 3.4077579975128174,
+      "valid_acc": 0.05787619203329086,
+      "valid_labels": 1987
+    },
+    {
+      "frame": "000007",
+      "loss": 3.3482635021209717,
+      "valid_acc": 0.06920762360095978,
+      "valid_labels": 1994
+    },
+    {
+      "frame": "000008",
+      "loss": 3.3895933628082275,
+      "valid_acc": 0.06720160692930222,
+      "valid_labels": 1994
+    },
+    {
+      "frame": "000009",
+      "loss": 3.3966317176818848,
+      "valid_acc": 0.06622851639986038,
+      "valid_labels": 1978
+    },
+    {
+      "frame": "000010",
+      "loss": 3.377206802368164,
+      "valid_acc": 0.07124937325716019,
+      "valid_labels": 1993
+    },
+    {
+      "frame": "000011",
+      "loss": 3.3678646087646484,
+      "valid_acc": 0.07192806899547577,
+      "valid_labels": 2002
+    },
+    {
+      "frame": "000012",
+      "loss": 3.3780012130737305,
+      "valid_acc": 0.06593406200408936,
+      "valid_labels": 2002
+    },
+    {
+      "frame": "000013",
+      "loss": 3.3948662281036377,
+      "valid_acc": 0.07057057321071625,
+      "valid_labels": 1998
+    },
+    {
+      "frame": "000014",
+      "loss": 3.4214534759521484,
+      "valid_acc": 0.06960440427064896,
+      "valid_labels": 1997
+    },
+    {
+      "frame": "000015",
+      "loss": 3.4378132820129395,
+      "valid_acc": 0.05480817332863808,
+      "valid_labels": 2007
+    },
+    {
+      "frame": "000016",
+      "loss": 3.425504684448242,
+      "valid_acc": 0.0505758635699749,
+      "valid_labels": 1997
+    },
+    {
+      "frame": "000017",
+      "loss": 3.4501240253448486,
+      "valid_acc": 0.05135951563715935,
+      "valid_labels": 1986
+    },
+    {
+      "frame": "000018",
+      "loss": 3.4696388244628906,
+      "valid_acc": 0.04531722143292427,
+      "valid_labels": 1986
+    },
+    {
+      "frame": "000019",
+      "loss": 3.44309663772583,
+      "valid_acc": 0.06362725794315338,
+      "valid_labels": 1996
+    },
+    {
+      "frame": "000020",
+      "loss": 3.470494031906128,
+      "valid_acc": 0.04332493618130684,
+      "valid_labels": 1985
+    },
+    {
+      "frame": "000021",
+      "loss": 3.4582359790802,
+      "valid_acc": 0.04656985402107239,
+      "valid_labels": 1997
+    },
+    {
+      "frame": "000022",
+      "loss": 3.4932098388671875,
+      "valid_acc": 0.050581689924001694,
+      "valid_labels": 1977
+    },
+    {
+      "frame": "000023",
+      "loss": 3.4949846267700195,
+      "valid_acc": 0.05236907675862312,
+      "valid_labels": 2005
+    },
+    {
+      "frame": "000024",
+      "loss": 3.5418941974639893,
+      "valid_acc": 0.036036036908626556,
+      "valid_labels": 1998
+    },
+    {
+      "frame": "000025",
+      "loss": 3.510347604751587,
+      "valid_acc": 0.039500001817941666,
+      "valid_labels": 2000
+    },
+    {
+      "frame": "000026",
+      "loss": 3.52921199798584,
+      "valid_acc": 0.039880357682704926,
+      "valid_labels": 2006
+    },
+    {
+      "frame": "000027",
+      "loss": 3.545860528945923,
+      "valid_acc": 0.03396603465080261,
+      "valid_labels": 2002
+    },
+    {
+      "frame": "000028",
+      "loss": 3.545544385910034,
+      "valid_acc": 0.03286852687597275,
+      "valid_labels": 2008
+    },
+    {
+      "frame": "000029",
+      "loss": 3.559941291809082,
+      "valid_acc": 0.03598200902342796,
+      "valid_labels": 2001
+    },
+    {
+      "frame": "000030",
+      "loss": 3.5608062744140625,
+      "valid_acc": 0.039840638637542725,
+      "valid_labels": 2008
+    },
+    {
+      "frame": "000031",
+      "loss": 3.5895302295684814,
+      "valid_acc": 0.03293413296341896,
+      "valid_labels": 2004
+    },
+    {
+      "frame": "000032",
+      "loss": 3.556177854537964,
+      "valid_acc": 0.038308460265398026,
+      "valid_labels": 2010
+    },
+    {
+      "frame": "000033",
+      "loss": 3.539431095123291,
+      "valid_acc": 0.03894158825278282,
+      "valid_labels": 2003
+    },
+    {
+      "frame": "000034",
+      "loss": 3.582606554031372,
+      "valid_acc": 0.03328365832567215,
+      "valid_labels": 2013
+    },
+    {
+      "frame": "000035",
+      "loss": 3.5468244552612305,
+      "valid_acc": 0.040520261973142624,
+      "valid_labels": 1999
+    },
+    {
+      "frame": "000036",
+      "loss": 3.5434188842773438,
+      "valid_acc": 0.03510531783103943,
+      "valid_labels": 1994
+    },
+    {
+      "frame": "000037",
+      "loss": 3.5548791885375977,
+      "valid_acc": 0.040419161319732666,
+      "valid_labels": 2004
+    },
+    {
+      "frame": "000038",
+      "loss": 3.5609309673309326,
+      "valid_acc": 0.030622489750385284,
+      "valid_labels": 1992
+    },
+    {
+      "frame": "000039",
+      "loss": 3.5689799785614014,
+      "valid_acc": 0.03246753290295601,
+      "valid_labels": 2002
+    },
+    {
+      "frame": "000040",
+      "loss": 3.5034866333007812,
+      "valid_acc": 0.04269211366772652,
+      "valid_labels": 1991
+    },
+    {
+      "frame": "000041",
+      "loss": 3.5573456287384033,
+      "valid_acc": 0.029693003743886948,
+      "valid_labels": 1987
+    },
+    {
+      "frame": "000042",
+      "loss": 3.5711829662323,
+      "valid_acc": 0.035446830093860626,
+      "valid_labels": 2003
+    },
+    {
+      "frame": "000043",
+      "loss": 3.586265802383423,
+      "valid_acc": 0.034068137407302856,
+      "valid_labels": 1996
+    },
+    {
+      "frame": "000044",
+      "loss": 3.5649163722991943,
+      "valid_acc": 0.04332493618130684,
+      "valid_labels": 1985
+    },
+    {
+      "frame": "000045",
+      "loss": 3.545640230178833,
+      "valid_acc": 0.03911735117435455,
+      "valid_labels": 1994
+    },
+    {
+      "frame": "000046",
+      "loss": 3.604238748550415,
+      "valid_acc": 0.03992015868425369,
+      "valid_labels": 2004
+    },
+    {
+      "frame": "000047",
+      "loss": 3.5433566570281982,
+      "valid_acc": 0.03992015868425369,
+      "valid_labels": 2004
+    },
+    {
+      "frame": "000048",
+      "loss": 3.571833848953247,
+      "valid_acc": 0.03855783864855766,
+      "valid_labels": 1997
+    },
+    {
+      "frame": "000049",
+      "loss": 3.5648345947265625,
+      "valid_acc": 0.04341317340731621,
+      "valid_labels": 2004
+    }
+  ],
+  "final_eval_by_frame": [
+    {
+      "frame": "000000",
+      "loss": 0.36191126704216003,
+      "valid_acc": 0.8705941438674927,
+      "valid_labels": 1986
+    },
+    {
+      "frame": "000001",
+      "loss": 0.3063558340072632,
+      "valid_acc": 0.8930373191833496,
+      "valid_labels": 1982
+    },
+    {
+      "frame": "000002",
+      "loss": 0.41186797618865967,
+      "valid_acc": 0.8596047163009644,
+      "valid_labels": 1973
+    },
+    {
+      "frame": "000003",
+      "loss": 0.35090285539627075,
+      "valid_acc": 0.8792319297790527,
+      "valid_labels": 1979
+    },
+    {
+      "frame": "000004",
+      "loss": 0.4173717796802521,
+      "valid_acc": 0.8543984293937683,
+      "valid_labels": 1978
+    },
+    {
+      "frame": "000005",
+      "loss": 0.4036400318145752,
+      "valid_acc": 0.8728004693984985,
+      "valid_labels": 1989
+    },
+    {
+      "frame": "000006",
+      "loss": 0.43851804733276367,
+      "valid_acc": 0.8565676212310791,
+      "valid_labels": 1987
+    },
+    {
+      "frame": "000007",
+      "loss": 0.49687695503234863,
+      "valid_acc": 0.8520561456680298,
+      "valid_labels": 1994
+    },
+    {
+      "frame": "000008",
+      "loss": 0.451015830039978,
+      "valid_acc": 0.8545637130737305,
+      "valid_labels": 1994
+    },
+    {
+      "frame": "000009",
+      "loss": 0.46877560019493103,
+      "valid_acc": 0.8432760834693909,
+      "valid_labels": 1978
+    },
+    {
+      "frame": "000010",
+      "loss": 0.5646150708198547,
+      "valid_acc": 0.8334169387817383,
+      "valid_labels": 1993
+    },
+    {
+      "frame": "000011",
+      "loss": 0.48416563868522644,
+      "valid_acc": 0.8436563014984131,
+      "valid_labels": 2002
+    },
+    {
+      "frame": "000012",
+      "loss": 0.5833887457847595,
+      "valid_acc": 0.8341658115386963,
+      "valid_labels": 2002
+    },
+    {
+      "frame": "000013",
+      "loss": 0.5807501673698425,
+      "valid_acc": 0.8443443179130554,
+      "valid_labels": 1998
+    },
+    {
+      "frame": "000014",
+      "loss": 0.5552687644958496,
+      "valid_acc": 0.8437656760215759,
+      "valid_labels": 1997
+    },
+    {
+      "frame": "000015",
+      "loss": 0.4516238868236542,
+      "valid_acc": 0.8709517121315002,
+      "valid_labels": 2007
+    },
+    {
+      "frame": "000016",
+      "loss": 0.4544559419155121,
+      "valid_acc": 0.8497746586799622,
+      "valid_labels": 1997
+    },
+    {
+      "frame": "000017",
+      "loss": 0.3814198970794678,
+      "valid_acc": 0.864551842212677,
+      "valid_labels": 1986
+    },
+    {
+      "frame": "000018",
+      "loss": 0.433280885219574,
+      "valid_acc": 0.8575025200843811,
+      "valid_labels": 1986
+    },
+    {
+      "frame": "000019",
+      "loss": 0.3758668005466461,
+      "valid_acc": 0.8762525320053101,
+      "valid_labels": 1996
+    },
+    {
+      "frame": "000020",
+      "loss": 0.3743143677711487,
+      "valid_acc": 0.8715365529060364,
+      "valid_labels": 1985
+    },
+    {
+      "frame": "000021",
+      "loss": 0.3911929428577423,
+      "valid_acc": 0.8843265175819397,
+      "valid_labels": 1997
+    },
+    {
+      "frame": "000022",
+      "loss": 0.25151461362838745,
+      "valid_acc": 0.910976231098175,
+      "valid_labels": 1977
+    },
+    {
+      "frame": "000023",
+      "loss": 0.43155765533447266,
+      "valid_acc": 0.8698254227638245,
+      "valid_labels": 2005
+    },
+    {
+      "frame": "000024",
+      "loss": 0.37145063281059265,
+      "valid_acc": 0.8918918967247009,
+      "valid_labels": 1998
+    },
+    {
+      "frame": "000025",
+      "loss": 0.38857224583625793,
+      "valid_acc": 0.8895000219345093,
+      "valid_labels": 2000
+    },
+    {
+      "frame": "000026",
+      "loss": 0.459744393825531,
+      "valid_acc": 0.867896318435669,
+      "valid_labels": 2006
+    },
+    {
+      "frame": "000027",
+      "loss": 0.31643155217170715,
+      "valid_acc": 0.8956043720245361,
+      "valid_labels": 2002
+    },
+    {
+      "frame": "000028",
+      "loss": 0.3571333587169647,
+      "valid_acc": 0.8914343118667603,
+      "valid_labels": 2008
+    },
+    {
+      "frame": "000029",
+      "loss": 0.32652223110198975,
+      "valid_acc": 0.9055472612380981,
+      "valid_labels": 2001
+    },
+    {
+      "frame": "000030",
+      "loss": 0.3663721978664398,
+      "valid_acc": 0.8904382586479187,
+      "valid_labels": 2008
+    },
+    {
+      "frame": "000031",
+      "loss": 0.302056223154068,
+      "valid_acc": 0.8997005820274353,
+      "valid_labels": 2004
+    },
+    {
+      "frame": "000032",
+      "loss": 0.32960808277130127,
+      "valid_acc": 0.8960199356079102,
+      "valid_labels": 2010
+    },
+    {
+      "frame": "000033",
+      "loss": 0.2803214192390442,
+      "valid_acc": 0.9071393013000488,
+      "valid_labels": 2003
+    },
+    {
+      "frame": "000034",
+      "loss": 0.2152712345123291,
+      "valid_acc": 0.9334327578544617,
+      "valid_labels": 2013
+    },
+    {
+      "frame": "000035",
+      "loss": 0.16399464011192322,
+      "valid_acc": 0.940470278263092,
+      "valid_labels": 1999
+    },
+    {
+      "frame": "000036",
+      "loss": 0.2014359086751938,
+      "valid_acc": 0.9398194551467896,
+      "valid_labels": 1994
+    },
+    {
+      "frame": "000037",
+      "loss": 0.20268917083740234,
+      "valid_acc": 0.9261476993560791,
+      "valid_labels": 2004
+    },
+    {
+      "frame": "000038",
+      "loss": 0.20571309328079224,
+      "valid_acc": 0.9302208423614502,
+      "valid_labels": 1992
+    },
+    {
+      "frame": "000039",
+      "loss": 0.17762961983680725,
+      "valid_acc": 0.9430569410324097,
+      "valid_labels": 2002
+    },
+    {
+      "frame": "000040",
+      "loss": 0.19189538061618805,
+      "valid_acc": 0.933199405670166,
+      "valid_labels": 1991
+    },
+    {
+      "frame": "000041",
+      "loss": 0.17846086621284485,
+      "valid_acc": 0.937091052532196,
+      "valid_labels": 1987
+    },
+    {
+      "frame": "000042",
+      "loss": 0.18583261966705322,
+      "valid_acc": 0.9425861239433289,
+      "valid_labels": 2003
+    },
+    {
+      "frame": "000043",
+      "loss": 0.17573417723178864,
+      "valid_acc": 0.9348697662353516,
+      "valid_labels": 1996
+    },
+    {
+      "frame": "000044",
+      "loss": 0.19318968057632446,
+      "valid_acc": 0.9335012435913086,
+      "valid_labels": 1985
+    },
+    {
+      "frame": "000045",
+      "loss": 0.16002407670021057,
+      "valid_acc": 0.9438315033912659,
+      "valid_labels": 1994
+    },
+    {
+      "frame": "000046",
+      "loss": 0.14913474023342133,
+      "valid_acc": 0.9515967965126038,
+      "valid_labels": 2004
+    },
+    {
+      "frame": "000047",
+      "loss": 0.1687849760055542,
+      "valid_acc": 0.9436127543449402,
+      "valid_labels": 2004
+    },
+    {
+      "frame": "000048",
+      "loss": 0.14460158348083496,
+      "valid_acc": 0.9539309144020081,
+      "valid_labels": 1997
+    },
+    {
+      "frame": "000049",
+      "loss": 0.1727365106344223,
+      "valid_acc": 0.9406187534332275,
+      "valid_labels": 2004
+    }
+  ],
+  "holdout_initial_eval_mean_loss": 3.610092294216156,
+  "holdout_final_eval_mean_loss": 0.6166299030184745,
+  "holdout_initial_eval_mean_acc": 0.031670218147337434,
+  "holdout_final_eval_mean_acc": 0.8494237035512924,
+  "holdout_initial_eval_by_frame": [
+    {
+      "frame": "000050",
+      "loss": 3.562343120574951,
+      "valid_acc": 0.044955044984817505,
+      "valid_labels": 2002
+    },
+    {
+      "frame": "000051",
+      "loss": 3.542099714279175,
+      "valid_acc": 0.04862155392765999,
+      "valid_labels": 1995
+    },
+    {
+      "frame": "000052",
+      "loss": 3.6203763484954834,
+      "valid_acc": 0.028358209878206253,
+      "valid_labels": 2010
+    },
+    {
+      "frame": "000053",
+      "loss": 3.559436559677124,
+      "valid_acc": 0.033433131873607635,
+      "valid_labels": 2004
+    },
+    {
+      "frame": "000054",
+      "loss": 3.5952863693237305,
+      "valid_acc": 0.03145281970500946,
+      "valid_labels": 2003
+    },
+    {
+      "frame": "000055",
+      "loss": 3.5637974739074707,
+      "valid_acc": 0.030861124396324158,
+      "valid_labels": 2009
+    },
+    {
+      "frame": "000056",
+      "loss": 3.6270551681518555,
+      "valid_acc": 0.023928215727210045,
+      "valid_labels": 2006
+    },
+    {
+      "frame": "000057",
+      "loss": 3.6183836460113525,
+      "valid_acc": 0.02244388870894909,
+      "valid_labels": 2005
+    },
+    {
+      "frame": "000058",
+      "loss": 3.622912645339966,
+      "valid_acc": 0.028014007955789566,
+      "valid_labels": 1999
+    },
+    {
+      "frame": "000059",
+      "loss": 3.597416400909424,
+      "valid_acc": 0.029470529407262802,
+      "valid_labels": 2002
+    },
+    {
+      "frame": "000060",
+      "loss": 3.5609450340270996,
+      "valid_acc": 0.03426017984747887,
+      "valid_labels": 2014
+    },
+    {
+      "frame": "000061",
+      "loss": 3.5697124004364014,
+      "valid_acc": 0.03450000286102295,
+      "valid_labels": 2000
+    },
+    {
+      "frame": "000062",
+      "loss": 3.5929975509643555,
+      "valid_acc": 0.02915019914507866,
+      "valid_labels": 2024
+    },
+    {
+      "frame": "000063",
+      "loss": 3.63448166847229,
+      "valid_acc": 0.019851118326187134,
+      "valid_labels": 2015
+    },
+    {
+      "frame": "000064",
+      "loss": 3.637423276901245,
+      "valid_acc": 0.029955066740512848,
+      "valid_labels": 2003
+    },
+    {
+      "frame": "000065",
+      "loss": 3.6219818592071533,
+      "valid_acc": 0.031793344765901566,
+      "valid_labels": 2013
+    },
+    {
+      "frame": "000066",
+      "loss": 3.6887123584747314,
+      "valid_acc": 0.029806260019540787,
+      "valid_labels": 2013
+    },
+    {
+      "frame": "000067",
+      "loss": 3.6575403213500977,
+      "valid_acc": 0.03180914372205734,
+      "valid_labels": 2012
+    },
+    {
+      "frame": "000068",
+      "loss": 3.681548595428467,
+      "valid_acc": 0.02942643314599991,
+      "valid_labels": 2005
+    },
+    {
+      "frame": "000069",
+      "loss": 3.647395372390747,
+      "valid_acc": 0.04131408780813217,
+      "valid_labels": 2009
+    }
+  ],
+  "holdout_final_eval_by_frame": [
+    {
+      "frame": "000050",
+      "loss": 0.4906582236289978,
+      "valid_acc": 0.8566433191299438,
+      "valid_labels": 2002
+    },
+    {
+      "frame": "000051",
+      "loss": 0.5308569669723511,
+      "valid_acc": 0.855137825012207,
+      "valid_labels": 1995
+    },
+    {
+      "frame": "000052",
+      "loss": 0.6024907827377319,
+      "valid_acc": 0.8393034934997559,
+      "valid_labels": 2010
+    },
+    {
+      "frame": "000053",
+      "loss": 0.676078736782074,
+      "valid_acc": 0.8403193354606628,
+      "valid_labels": 2004
+    },
+    {
+      "frame": "000054",
+      "loss": 0.5923612117767334,
+      "valid_acc": 0.8482276797294617,
+      "valid_labels": 2003
+    },
+    {
+      "frame": "000055",
+      "loss": 0.5818373560905457,
+      "valid_acc": 0.8571428656578064,
+      "valid_labels": 2009
+    },
+    {
+      "frame": "000056",
+      "loss": 0.532677948474884,
+      "valid_acc": 0.8609172701835632,
+      "valid_labels": 2006
+    },
+    {
+      "frame": "000057",
+      "loss": 0.7001004815101624,
+      "valid_acc": 0.8324189186096191,
+      "valid_labels": 2005
+    },
+    {
+      "frame": "000058",
+      "loss": 0.5997114181518555,
+      "valid_acc": 0.8559280037879944,
+      "valid_labels": 1999
+    },
+    {
+      "frame": "000059",
+      "loss": 0.5722941160202026,
+      "valid_acc": 0.8626373410224915,
+      "valid_labels": 2002
+    },
+    {
+      "frame": "000060",
+      "loss": 0.6290406584739685,
+      "valid_acc": 0.8416087627410889,
+      "valid_labels": 2014
+    },
+    {
+      "frame": "000061",
+      "loss": 0.6461968421936035,
+      "valid_acc": 0.8390000462532043,
+      "valid_labels": 2000
+    },
+    {
+      "frame": "000062",
+      "loss": 0.6488565802574158,
+      "valid_acc": 0.8325099349021912,
+      "valid_labels": 2024
+    },
+    {
+      "frame": "000063",
+      "loss": 0.6271063685417175,
+      "valid_acc": 0.8496278524398804,
+      "valid_labels": 2015
+    },
+    {
+      "frame": "000064",
+      "loss": 0.6891955733299255,
+      "valid_acc": 0.8272591233253479,
+      "valid_labels": 2003
+    },
+    {
+      "frame": "000065",
+      "loss": 0.6538971066474915,
+      "valid_acc": 0.8599106073379517,
+      "valid_labels": 2013
+    },
+    {
+      "frame": "000066",
+      "loss": 0.7143694758415222,
+      "valid_acc": 0.8410333395004272,
+      "valid_labels": 2013
+    },
+    {
+      "frame": "000067",
+      "loss": 0.6719128489494324,
+      "valid_acc": 0.8489065170288086,
+      "valid_labels": 2012
+    },
+    {
+      "frame": "000068",
+      "loss": 0.4828464686870575,
+      "valid_acc": 0.8857855200767517,
+      "valid_labels": 2005
+    },
+    {
+      "frame": "000069",
+      "loss": 0.6901088953018188,
+      "valid_acc": 0.8541563153266907,
+      "valid_labels": 2009
+    }
+  ],
+  "train_first_loss": 3.546999931335449,
+  "train_final_loss": 0.1466989368200302,
+  "train_best_loss": 0.1085507720708847,
+  "train_final_acc": 0.953592836856842,
+  "raw_points_first_frame": 124668,
+  "valid_labels_first_sample": 1986,
+  "cuda_max_memory_gb": 0.957,
+  "outputs": [
+    "overfit_log.jsonl",
+    "loss_curve.png",
+    "initial_bev_ground_truth.png",
+    "initial_bev_prediction.png",
+    "initial_image_lidar_depth_projection.png",
+    "initial_image_ipfp_extra_projection.png",
+    "final_bev_ground_truth.png",
+    "final_bev_prediction.png",
+    "final_image_lidar_depth_projection.png",
+    "final_image_ipfp_extra_projection.png",
+    "summary.json",
+    "OVERFIT_NOTES.md",
+    "selected_frame_visualizations/frame_000000_gt.png",
+    "selected_frame_visualizations/frame_000000_final_prediction.png",
+    "selected_frame_visualizations/frame_000007_gt.png",
+    "selected_frame_visualizations/frame_000007_final_prediction.png",
+    "selected_frame_visualizations/frame_000014_gt.png",
+    "selected_frame_visualizations/frame_000014_final_prediction.png",
+    "selected_frame_visualizations/frame_000021_gt.png",
+    "selected_frame_visualizations/frame_000021_final_prediction.png",
+    "selected_frame_visualizations/frame_000028_gt.png",
+    "selected_frame_visualizations/frame_000028_final_prediction.png",
+    "selected_frame_visualizations/frame_000035_gt.png",
+    "selected_frame_visualizations/frame_000035_final_prediction.png",
+    "selected_frame_visualizations/frame_000042_gt.png",
+    "selected_frame_visualizations/frame_000042_final_prediction.png",
+    "selected_frame_visualizations/frame_000049_gt.png",
+    "selected_frame_visualizations/frame_000049_final_prediction.png",
+    "selected_frames_final_montage.png",
+    "holdout_initial_bev_ground_truth.png",
+    "holdout_initial_bev_prediction.png",
+    "holdout_initial_image_lidar_depth_projection.png",
+    "holdout_initial_image_ipfp_extra_projection.png",
+    "holdout_final_bev_ground_truth.png",
+    "holdout_final_bev_prediction.png",
+    "holdout_final_image_lidar_depth_projection.png",
+    "holdout_final_image_ipfp_extra_projection.png",
+    "holdout_selected_frame_visualizations/frame_000050_gt.png",
+    "holdout_selected_frame_visualizations/frame_000050_holdout_final_prediction.png",
+    "holdout_selected_frame_visualizations/frame_000052_gt.png",
+    "holdout_selected_frame_visualizations/frame_000052_holdout_final_prediction.png",
+    "holdout_selected_frame_visualizations/frame_000055_gt.png",
+    "holdout_selected_frame_visualizations/frame_000055_holdout_final_prediction.png",
+    "holdout_selected_frame_visualizations/frame_000058_gt.png",
+    "holdout_selected_frame_visualizations/frame_000058_holdout_final_prediction.png",
+    "holdout_selected_frame_visualizations/frame_000060_gt.png",
+    "holdout_selected_frame_visualizations/frame_000060_holdout_final_prediction.png",
+    "holdout_selected_frame_visualizations/frame_000063_gt.png",
+    "holdout_selected_frame_visualizations/frame_000063_holdout_final_prediction.png",
+    "holdout_selected_frame_visualizations/frame_000066_gt.png",
+    "holdout_selected_frame_visualizations/frame_000066_holdout_final_prediction.png",
+    "holdout_selected_frame_visualizations/frame_000069_gt.png",
+    "holdout_selected_frame_visualizations/frame_000069_holdout_final_prediction.png",
+    "holdout_selected_frames_final_montage.png"
+  ]
+}

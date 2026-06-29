@@ -34,6 +34,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--root", default="/root/autodl-tmp/ipfp_repro")
     parser.add_argument("--sequence", default="00")
     parser.add_argument("--frames", nargs="+", default=["000000"])
+    parser.add_argument("--eval-frames", nargs="*", default=None)
     parser.add_argument("--num-points", type=int, default=2048)
     parser.add_argument("--num-centers", type=int, default=64)
     parser.add_argument("--image-width", type=int, default=480)
@@ -289,7 +290,7 @@ def evaluate_samples(
     samples: list[dict],
     args: argparse.Namespace,
     seed_base: int,
-) -> tuple[list[dict], np.ndarray, dict]:
+) -> tuple[list[dict], np.ndarray, dict | None]:
     model.eval()
     if ipfp is not None:
         ipfp.eval()
@@ -326,9 +327,8 @@ def evaluate_samples(
             if index == 0:
                 first_pred = pred.detach().cpu().numpy()
                 first_extra = extra
-    if first_pred is None or first_extra is None:
-        if first_pred is None:
-            raise RuntimeError("No samples evaluated")
+    if first_pred is None:
+        raise RuntimeError("No samples evaluated")
     return rows, first_pred, first_extra
 
 
@@ -405,6 +405,9 @@ def save_selected_frame_visualizations(
     samples: list[dict],
     args: argparse.Namespace,
     seed_base: int,
+    subdir_name: str = "selected_frame_visualizations",
+    montage_name: str = "selected_frames_final_montage.png",
+    prediction_label: str = "final",
 ) -> list[str]:
     count = min(max(args.viz_frame_count, 0), len(samples))
     if count == 0:
@@ -413,7 +416,7 @@ def save_selected_frame_visualizations(
         indices = list(range(len(samples)))
     else:
         indices = sorted(set(np.linspace(0, len(samples) - 1, count, dtype=int).tolist()))
-    vis_dir = output_dir / "selected_frame_visualizations"
+    vis_dir = output_dir / subdir_name
     vis_dir.mkdir(parents=True, exist_ok=True)
     outputs: list[str] = []
     cards = []
@@ -434,9 +437,9 @@ def save_selected_frame_visualizations(
             )
             pred = logits.argmax(dim=1).detach().cpu().numpy()
             gt_path = vis_dir / f"frame_{sample['frame']}_gt.png"
-            pred_path = vis_dir / f"frame_{sample['frame']}_final_prediction.png"
+            pred_path = vis_dir / f"frame_{sample['frame']}_{prediction_label}_prediction.png"
             draw_bev(sample["coord_np"], sample["segment_np"], gt_path, f"frame {sample['frame']} GT")
-            draw_bev(sample["coord_np"], pred.astype(np.int64), pred_path, f"frame {sample['frame']} final")
+            draw_bev(sample["coord_np"], pred.astype(np.int64), pred_path, f"frame {sample['frame']} {prediction_label}")
             outputs.extend([str(gt_path.relative_to(output_dir)), str(pred_path.relative_to(output_dir))])
             cards.append((sample["frame"], gt_path, pred_path))
 
@@ -455,12 +458,12 @@ def save_selected_frame_visualizations(
         x0 = col * card_w
         y0 = row * card_h
         draw.rectangle((x0 + 4, y0 + 4, x0 + card_w - 4, y0 + card_h - 4), outline=(210, 210, 210))
-        draw.text((x0 + pad, y0 + 6), f"frame {frame}: GT | final", fill=(20, 20, 20))
+        draw.text((x0 + pad, y0 + 6), f"frame {frame}: GT | {prediction_label}", fill=(20, 20, 20))
         gt_img = Image.open(gt_path).convert("RGB").resize((tile, tile), Image.BILINEAR)
         pred_img = Image.open(pred_path).convert("RGB").resize((tile, tile), Image.BILINEAR)
         montage.paste(gt_img, (x0 + pad, y0 + title_h + pad))
         montage.paste(pred_img, (x0 + pad * 2 + tile, y0 + title_h + pad))
-    montage_path = output_dir / "selected_frames_final_montage.png"
+    montage_path = output_dir / montage_name
     montage.save(montage_path)
     outputs.append(str(montage_path.relative_to(output_dir)))
     return outputs
@@ -471,12 +474,18 @@ def main() -> None:
     root = Path(args.root)
     pointcept_root = root / "src/Pointcept"
     frame_label = compact_frame_label(args.frames)
+    eval_frame_label = compact_frame_label(args.eval_frames or [])
+    run_label = (
+        f"train{frame_label}_eval{eval_frame_label}"
+        if args.eval_frames
+        else frame_label
+    )
     output_dir = Path(
         args.output_dir
         or root
         / "results/semantic_kitti_repro"
         / time.strftime("%Y%m%d_%H%M%S")
-        / f"tiny_overfit_{args.mode}_seq{args.sequence}_{frame_label}"
+        / f"tiny_overfit_{args.mode}_seq{args.sequence}_{run_label}"
     )
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -503,6 +512,10 @@ def main() -> None:
     samples = [load_sample(args, frame, args.seed + idx * 1009) for idx, frame in enumerate(args.frames)]
     if not samples:
         raise RuntimeError("No samples loaded")
+    eval_samples = [
+        load_sample(args, frame, args.seed + 50000 + idx * 1009)
+        for idx, frame in enumerate(args.eval_frames or [])
+    ]
 
     cfg = Config.fromfile(str(pointcept_root / "configs/nuscenes/semseg-pt-v3m1-0-base.py"))
     cfg.model.num_classes = 19
@@ -538,6 +551,23 @@ def main() -> None:
         args.seed + 999,
     )
     save_prediction_artifacts(output_dir, "initial", samples[0], initial_pred, initial_extra)
+    holdout_initial_eval_by_frame = []
+    if eval_samples:
+        holdout_initial_eval_by_frame, holdout_initial_pred, holdout_initial_extra = evaluate_samples(
+            model,
+            ipfp,
+            Point,
+            eval_samples,
+            args,
+            args.seed + 1999,
+        )
+        save_prediction_artifacts(
+            output_dir,
+            "holdout_initial",
+            eval_samples[0],
+            holdout_initial_pred,
+            holdout_initial_extra,
+        )
 
     records = []
     log_path = output_dir / "overfit_log.jsonl"
@@ -586,6 +616,24 @@ def main() -> None:
         args.seed + 999,
     )
     save_prediction_artifacts(output_dir, "final", samples[0], final_pred, final_extra)
+    holdout_final_eval_by_frame = []
+    holdout_viz_outputs = []
+    if eval_samples:
+        holdout_final_eval_by_frame, holdout_final_pred, holdout_final_extra = evaluate_samples(
+            model,
+            ipfp,
+            Point,
+            eval_samples,
+            args,
+            args.seed + 1999,
+        )
+        save_prediction_artifacts(
+            output_dir,
+            "holdout_final",
+            eval_samples[0],
+            holdout_final_pred,
+            holdout_final_extra,
+        )
     selected_viz_outputs = save_selected_frame_visualizations(
         output_dir,
         model,
@@ -595,11 +643,44 @@ def main() -> None:
         args,
         args.seed + 999,
     )
+    if eval_samples:
+        holdout_viz_outputs = save_selected_frame_visualizations(
+            output_dir,
+            model,
+            ipfp,
+            Point,
+            eval_samples,
+            args,
+            args.seed + 1999,
+            subdir_name="holdout_selected_frame_visualizations",
+            montage_name="holdout_selected_frames_final_montage.png",
+            prediction_label="holdout_final",
+        )
     draw_loss_curve(records, output_dir / "loss_curve.png")
     initial_eval_mean_loss = float(np.mean([row["loss"] for row in initial_eval_by_frame]))
     final_eval_mean_loss = float(np.mean([row["loss"] for row in final_eval_by_frame]))
     initial_eval_mean_acc = float(np.mean([row["valid_acc"] for row in initial_eval_by_frame]))
     final_eval_mean_acc = float(np.mean([row["valid_acc"] for row in final_eval_by_frame]))
+    holdout_initial_eval_mean_loss = (
+        float(np.mean([row["loss"] for row in holdout_initial_eval_by_frame]))
+        if holdout_initial_eval_by_frame
+        else None
+    )
+    holdout_final_eval_mean_loss = (
+        float(np.mean([row["loss"] for row in holdout_final_eval_by_frame]))
+        if holdout_final_eval_by_frame
+        else None
+    )
+    holdout_initial_eval_mean_acc = (
+        float(np.mean([row["valid_acc"] for row in holdout_initial_eval_by_frame]))
+        if holdout_initial_eval_by_frame
+        else None
+    )
+    holdout_final_eval_mean_acc = (
+        float(np.mean([row["valid_acc"] for row in holdout_final_eval_by_frame]))
+        if holdout_final_eval_by_frame
+        else None
+    )
     outputs = [
         "overfit_log.jsonl",
         "loss_curve.png",
@@ -616,13 +697,29 @@ def main() -> None:
     if args.mode == "fused":
         outputs.insert(5, "initial_image_ipfp_extra_projection.png")
         outputs.insert(9, "final_image_ipfp_extra_projection.png")
+    if eval_samples:
+        holdout_outputs = [
+            "holdout_initial_bev_ground_truth.png",
+            "holdout_initial_bev_prediction.png",
+            "holdout_initial_image_lidar_depth_projection.png",
+            "holdout_final_bev_ground_truth.png",
+            "holdout_final_bev_prediction.png",
+            "holdout_final_image_lidar_depth_projection.png",
+            *holdout_viz_outputs,
+        ]
+        if args.mode == "fused":
+            holdout_outputs.insert(3, "holdout_initial_image_ipfp_extra_projection.png")
+            holdout_outputs.insert(7, "holdout_final_image_ipfp_extra_projection.png")
+        outputs.extend(holdout_outputs)
 
     summary = {
         "status": "OK",
         "sequence": args.sequence,
         "mode": args.mode,
         "frames": args.frames,
+        "eval_frames": args.eval_frames or [],
         "frame_label": frame_label,
+        "eval_frame_label": eval_frame_label if args.eval_frames else None,
         "num_points": args.num_points,
         "num_centers": args.num_centers,
         "image_width": args.image_width,
@@ -641,6 +738,12 @@ def main() -> None:
         "final_eval_mean_acc": final_eval_mean_acc,
         "initial_eval_by_frame": initial_eval_by_frame,
         "final_eval_by_frame": final_eval_by_frame,
+        "holdout_initial_eval_mean_loss": holdout_initial_eval_mean_loss,
+        "holdout_final_eval_mean_loss": holdout_final_eval_mean_loss,
+        "holdout_initial_eval_mean_acc": holdout_initial_eval_mean_acc,
+        "holdout_final_eval_mean_acc": holdout_final_eval_mean_acc,
+        "holdout_initial_eval_by_frame": holdout_initial_eval_by_frame,
+        "holdout_final_eval_by_frame": holdout_final_eval_by_frame,
         "train_first_loss": records[0]["loss"] if records else None,
         "train_final_loss": records[-1]["loss"] if records else None,
         "train_best_loss": min((r["loss"] for r in records), default=None),
@@ -682,14 +785,43 @@ def main() -> None:
         f"- CUDA peak memory GB: {summary['cuda_max_memory_gb']:.3f}",
         f"- Selected visualization frames: {len(selected_viz_outputs) // 2 if selected_viz_outputs else 0}",
         "",
-        "## Per-frame Eval",
-        "",
     ]
+    if holdout_final_eval_by_frame:
+        notes.extend(
+            [
+                "## Holdout Eval",
+                "",
+                f"- Holdout initial mean loss: {holdout_initial_eval_mean_loss:.6f}",
+                f"- Holdout final mean loss: {holdout_final_eval_mean_loss:.6f}",
+                f"- Holdout initial mean accuracy: {holdout_initial_eval_mean_acc:.6f}",
+                f"- Holdout final mean accuracy: {holdout_final_eval_mean_acc:.6f}",
+                "",
+            ]
+        )
+    notes.extend(
+        [
+            "## Train-Frame Eval",
+            "",
+        ]
+    )
     for before, after in zip(initial_eval_by_frame, final_eval_by_frame):
         notes.append(
             f"- Frame {before['frame']}: loss {before['loss']:.6f} -> {after['loss']:.6f}, "
             f"accuracy {before['valid_acc']:.6f} -> {after['valid_acc']:.6f}"
         )
+    if holdout_final_eval_by_frame:
+        notes.extend(
+            [
+                "",
+                "## Holdout Per-Frame Eval",
+                "",
+            ]
+        )
+        for before, after in zip(holdout_initial_eval_by_frame, holdout_final_eval_by_frame):
+            notes.append(
+                f"- Frame {before['frame']}: loss {before['loss']:.6f} -> {after['loss']:.6f}, "
+                f"accuracy {before['valid_acc']:.6f} -> {after['valid_acc']:.6f}"
+            )
     notes.append("")
     (output_dir / "OVERFIT_NOTES.md").write_text("\n".join(notes))
     print(json.dumps(summary, indent=2, ensure_ascii=False), flush=True)

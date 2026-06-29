@@ -48,10 +48,11 @@ PTv3 + IPFP:
 
 ## Next Experiment
 
-The next useful step is a small train/holdout comparison:
+The next useful step was a small train/holdout comparison:
 
 - Train: `seq00` frames `000000-000049`
 - Holdout eval: `seq00` frames `000050-000069`
 - Compare LiDAR-only vs PTv3+IPFP on holdout loss/accuracy and qualitative BEV predictions.
 
-This will test whether image back-projection helps beyond memorizing the training frames.
+This has now been completed. The PTv3+IPFP route matched train-frame accuracy and
+improved holdout accuracy in the first small split; see `HOLDOUT_EXPERIMENTS.md`.

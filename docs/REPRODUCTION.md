@@ -146,4 +146,32 @@ python scripts/semantic_kitti_ipfp_tiny_overfit.py \
   --device cuda
 ```
 
+Train/holdout comparison:
+
+```bash
+TRAIN_FRAMES=(000000 000001 000002 000003 000004 000005 000006 000007 000008 000009 \
+              000010 000011 000012 000013 000014 000015 000016 000017 000018 000019 \
+              000020 000021 000022 000023 000024 000025 000026 000027 000028 000029 \
+              000030 000031 000032 000033 000034 000035 000036 000037 000038 000039 \
+              000040 000041 000042 000043 000044 000045 000046 000047 000048 000049)
+HOLDOUT_FRAMES=(000050 000051 000052 000053 000054 000055 000056 000057 000058 000059 \
+                000060 000061 000062 000063 000064 000065 000066 000067 000068 000069)
+
+python scripts/semantic_kitti_ipfp_tiny_overfit.py \
+  --root "$ROOT" \
+  --sequence 00 \
+  --frames "${TRAIN_FRAMES[@]}" \
+  --eval-frames "${HOLDOUT_FRAMES[@]}" \
+  --num-points 2048 \
+  --num-centers 64 \
+  --image-width 480 \
+  --steps 500 \
+  --lr 5e-4 \
+  --viz-frame-count 8 \
+  --mode fused \
+  --device cuda
+
+# Repeat with --mode lidar-only for the control route.
+```
+
 The tiny-overfit runs are sanity checks. They validate the training path, not benchmark generalization.
