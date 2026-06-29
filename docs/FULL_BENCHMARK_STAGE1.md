@@ -110,13 +110,12 @@ Sanity artifacts included in the repository:
 
 ![Sanity full-frame validation montage](../results/semantic_kitti_full_benchmark/sanity_lidar_20260629_223612/val_viz_step_0000002/val_selected_frames_montage.png)
 
-## Active Remote Run
+## Completed LiDAR-Only Result
 
-The first full LiDAR-only stage-1 run was launched in a detached `screen` session:
+The first full LiDAR-only stage-1 run completed successfully:
 
 | Field | Value |
 | --- | --- |
-| Screen session | `semkitti_full_lidar` |
 | Output directory | `/root/autodl-tmp/ipfp_repro/results/semantic_kitti_full_benchmark/stage1_lidar_full_20260629_223718` |
 | Train sequences | `00 01 02 03 04 05 06 07 09 10` |
 | Validation sequence | `08` |
@@ -125,14 +124,53 @@ The first full LiDAR-only stage-1 run was launched in a detached `screen` sessio
 | Steps | `20000` |
 | Train sample points | `8192` |
 | Eval chunk points | `16384` |
-| Eval schedule | full sequence `08` validation at the end |
+| Full-frame valid validation points | `476757723` |
+| Validation mIoU | `19.01%` |
+| Validation overall accuracy | `66.93%` |
+| Validation mean class accuracy | `27.67%` |
+| Validation frequency-weighted IoU | `52.43%` |
+| Validation mean loss | `1.7342` |
+| Validation elapsed time | `30.24 min` |
+| CUDA peak memory | `1.433 GB` |
 
-Progress can be checked on the remote host with:
+Repository artifacts:
+
+- `results/semantic_kitti_full_benchmark/stage1_lidar_full_20260629_223718/summary.json`
+- `results/semantic_kitti_full_benchmark/stage1_lidar_full_20260629_223718/val_metrics_step_0020000_lidar-only.json`
+- `results/semantic_kitti_full_benchmark/stage1_lidar_full_20260629_223718/BENCHMARK_NOTES.md`
+- `results/semantic_kitti_full_benchmark/stage1_lidar_full_20260629_223718/val_viz_step_0020000/val_selected_frames_montage.png`
+
+![Stage-1 LiDAR-only full validation montage](../results/semantic_kitti_full_benchmark/stage1_lidar_full_20260629_223718/val_viz_step_0020000/val_selected_frames_montage.png)
+
+Per-class validation IoU:
+
+| Class | IoU | Accuracy |
+| --- | ---: | ---: |
+| car | 47.87% | 50.84% |
+| bicycle | 0.20% | 0.20% |
+| motorcycle | 3.11% | 5.69% |
+| truck | 1.52% | 4.05% |
+| other-vehicle | 4.56% | 30.23% |
+| person | 1.63% | 2.00% |
+| bicyclist | 4.55% | 5.37% |
+| motorcyclist | 0.00% | 0.00% |
+| road | 62.83% | 90.66% |
+| parking | 0.35% | 0.36% |
+| sidewalk | 31.68% | 46.94% |
+| other-ground | 0.01% | 0.01% |
+| building | 57.83% | 77.60% |
+| fence | 17.76% | 43.43% |
+| vegetation | 68.40% | 78.94% |
+| trunk | 7.87% | 8.29% |
+| terrain | 39.19% | 45.35% |
+| pole | 8.93% | 9.21% |
+| traffic-sign | 2.92% | 26.47% |
+
+Remote checkpoints are intentionally not committed:
 
 ```bash
-screen -ls
-tail -n 40 /root/autodl-tmp/ipfp_repro/results/semantic_kitti_full_benchmark/stage1_lidar_full_20260629_223718/run.log
-wc -l /root/autodl-tmp/ipfp_repro/results/semantic_kitti_full_benchmark/stage1_lidar_full_20260629_223718/train_log.jsonl
+/root/autodl-tmp/ipfp_repro/results/semantic_kitti_full_benchmark/stage1_lidar_full_20260629_223718/checkpoints/latest.pth
+/root/autodl-tmp/ipfp_repro/results/semantic_kitti_full_benchmark/stage1_lidar_full_20260629_223718/checkpoints/best.pth
 ```
 
 ## Caveat
