@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 import numpy as np
+import cv2
 import torch
 import torch.nn.functional as F
 from PIL import Image, ImageDraw
@@ -71,8 +72,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", default=None)
     parser.add_argument("--viz-frame-count", type=int, default=8)
     parser.add_argument("--mode", choices=["fused", "lidar-only"], default="fused")
+    parser.add_argument("--eval-route", choices=["same", "lidar-only", "both"], default="same")
+    parser.add_argument("--depth-mode", choices=["pseudo", "lidar-inpaint"], default="pseudo")
+    parser.add_argument("--loss-mode", choices=["ce", "ce-lovasz"], default="ce")
+    parser.add_argument("--lovasz-weight", type=float, default=1.0)
     parser.add_argument("--extra-feature-mode", choices=["learned", "zeros"], default="learned")
+    parser.add_argument("--extra-feature-scale", type=float, default=1.0)
     parser.add_argument("--ipfp-detach", action="store_true")
+    parser.add_argument("--ipfp-lower-percentile", type=float, default=5.0)
+    parser.add_argument("--ipfp-upper-percentile", type=float, default=95.0)
+    parser.add_argument("--ipfp-discard-probability", type=float, default=0.0)
     return parser.parse_args()
 
 
@@ -167,6 +176,136 @@ def append_class_iou_notes(notes: list[str], title: str, metrics: dict | None) -
         )
 
 
+def make_pseudo_metric_depth(projected_depth: np.ndarray, height: int, width: int) -> tuple[np.ndarray, list[float]]:
+    d_low, d_high = np.percentile(projected_depth, [5, 95]).astype(np.float32)
+    yy = np.linspace(0.0, 1.0, height, dtype=np.float32)[:, None]
+    xx = np.linspace(0.0, 1.0, width, dtype=np.float32)[None, :]
+    metric_depth = d_low + (d_high - d_low) * (0.20 + 0.55 * yy + 0.25 * xx)
+    metric_depth = np.clip(metric_depth, max(float(d_low), 1e-3), max(float(d_high), 1e-3))
+    return metric_depth.astype(np.float32), [float(d_low), float(d_high)]
+
+
+def make_lidar_inpaint_metric_depth(
+    uv: np.ndarray,
+    depth: np.ndarray,
+    height: int,
+    width: int,
+) -> tuple[np.ndarray, list[float]]:
+    valid = (
+        np.isfinite(uv).all(axis=1)
+        & np.isfinite(depth)
+        & (depth > 0)
+        & (uv[:, 0] >= 0)
+        & (uv[:, 0] <= width - 1)
+        & (uv[:, 1] >= 0)
+        & (uv[:, 1] <= height - 1)
+    )
+    uv_valid = uv[valid]
+    depth_valid = depth[valid].astype(np.float32)
+    if depth_valid.shape[0] < 16:
+        return make_pseudo_metric_depth(depth_valid, height, width)
+
+    d_low, d_high = np.percentile(depth_valid, [5, 95]).astype(np.float32)
+    sparse = np.zeros((height, width), dtype=np.float32)
+    xs = np.rint(uv_valid[:, 0]).astype(np.int32).clip(0, width - 1)
+    ys = np.rint(uv_valid[:, 1]).astype(np.int32).clip(0, height - 1)
+
+    order = np.argsort(depth_valid)[::-1]
+    for idx in order:
+        sparse[ys[idx], xs[idx]] = depth_valid[idx]
+
+    known = sparse > 0
+    if int(known.sum()) < 16:
+        return make_pseudo_metric_depth(depth_valid, height, width)
+
+    holes = (~known).astype(np.uint8) * 255
+    clipped = np.clip(sparse, max(float(d_low), 1e-3), max(float(d_high), 1e-3))
+    try:
+        inpainted = cv2.inpaint(clipped.astype(np.float32), holes, 5.0, cv2.INPAINT_NS)
+    except cv2.error:
+        denom = max(float(d_high - d_low), 1e-3)
+        normalized = ((clipped - float(d_low)) / denom * 255.0).clip(0, 255).astype(np.uint8)
+        normalized[~known] = 0
+        inpainted_u8 = cv2.inpaint(normalized, holes, 5.0, cv2.INPAINT_NS)
+        inpainted = inpainted_u8.astype(np.float32) / 255.0 * denom + float(d_low)
+
+    smoothed = cv2.GaussianBlur(inpainted.astype(np.float32), (5, 5), 0)
+    smoothed[known] = sparse[known]
+    metric_depth = np.clip(smoothed, max(float(d_low), 1e-3), max(float(d_high), 1e-3))
+    return metric_depth.astype(np.float32), [float(d_low), float(d_high)]
+
+
+def build_metric_depth(
+    args: argparse.Namespace,
+    uv_all: np.ndarray,
+    depth_all: np.ndarray,
+    valid_all: np.ndarray,
+    height: int,
+    width: int,
+) -> tuple[np.ndarray, list[float]]:
+    projected_depth = depth_all[valid_all]
+    if projected_depth.shape[0] < 16:
+        raise RuntimeError(f"Too few projected points to build metric depth: {projected_depth.shape[0]}")
+    if args.depth_mode == "lidar-inpaint":
+        return make_lidar_inpaint_metric_depth(uv_all[valid_all], projected_depth, height, width)
+    return make_pseudo_metric_depth(projected_depth, height, width)
+
+
+def lovasz_grad(gt_sorted: torch.Tensor) -> torch.Tensor:
+    p = gt_sorted.numel()
+    gts = gt_sorted.sum()
+    intersection = gts - gt_sorted.float().cumsum(0)
+    union = gts + (1.0 - gt_sorted).float().cumsum(0)
+    jaccard = 1.0 - intersection / union.clamp_min(1e-6)
+    if p > 1:
+        jaccard[1:p] = jaccard[1:p] - jaccard[0 : p - 1]
+    return jaccard
+
+
+def lovasz_softmax_flat(probas: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+    valid = labels >= 0
+    if not bool(valid.any()):
+        return probas.sum() * 0.0
+    probas = probas[valid]
+    labels = labels[valid]
+    losses = []
+    for class_idx in range(probas.shape[1]):
+        fg = (labels == class_idx).float()
+        if not bool(fg.any()):
+            continue
+        errors = (fg - probas[:, class_idx]).abs()
+        errors_sorted, perm = torch.sort(errors, descending=True)
+        fg_sorted = fg[perm]
+        losses.append(torch.dot(errors_sorted, lovasz_grad(fg_sorted)))
+    if not losses:
+        return probas.sum() * 0.0
+    return torch.stack(losses).mean()
+
+
+def compute_loss(logits: torch.Tensor, target: torch.Tensor, args: argparse.Namespace) -> tuple[torch.Tensor, dict]:
+    ce_loss = F.cross_entropy(logits, target, ignore_index=-1)
+    lovasz_loss = logits.new_tensor(0.0)
+    if args.loss_mode == "ce-lovasz":
+        lovasz_loss = lovasz_softmax_flat(F.softmax(logits, dim=1), target)
+    total = ce_loss + args.lovasz_weight * lovasz_loss
+    return total, {
+        "ce_loss": float(ce_loss.detach().cpu().item()),
+        "lovasz_loss": float(lovasz_loss.detach().cpu().item()),
+    }
+
+
+def primary_eval_route(args: argparse.Namespace) -> str:
+    if args.eval_route == "same":
+        return args.mode
+    return "lidar-only"
+
+
+def diagnostic_eval_route(args: argparse.Namespace) -> str | None:
+    if args.eval_route == "both" and args.mode == "fused":
+        return "fused"
+    return None
+
+
 def load_sample(args: argparse.Namespace, frame: str, sample_seed: int) -> dict:
     data_root = Path(args.root) / "data/semantic_kitti/dataset/sequences" / args.sequence
     velodyne_path = data_root / "velodyne" / f"{frame}.bin"
@@ -195,11 +334,12 @@ def load_sample(args: argparse.Namespace, frame: str, sample_seed: int) -> dict:
     lidar_to_cam_4 = as_4x4(tr)
     intrinsics = p2[:, :3].copy()
 
-    uv_all, _, valid_all = project_kitti(scan[:, :3], p2, tr, (new_h, new_w))
+    uv_all, depth_all, valid_all = project_kitti(scan[:, :3], p2, tr, (new_h, new_w))
     valid_idx = np.flatnonzero(valid_all)
     invalid_idx = np.flatnonzero(~valid_all)
     if valid_idx.shape[0] < 64:
         raise RuntimeError(f"Too few projected points in frame {frame}: {valid_idx.shape[0]}")
+    metric_depth, depth_p5_p95 = build_metric_depth(args, uv_all, depth_all, valid_all, new_h, new_w)
 
     rng = np.random.default_rng(sample_seed)
     n = min(args.num_points, scan.shape[0])
@@ -218,15 +358,6 @@ def load_sample(args: argparse.Namespace, frame: str, sample_seed: int) -> dict:
     intensity_np = scan[chosen, 3:4].astype(np.float32)
     segment_np = labels[chosen].astype(np.int64)
     uv_sel, depth_sel, valid_sel = project_kitti(coord_np, p2, tr, (new_h, new_w))
-    projected_depth = depth_sel[valid_sel]
-    if projected_depth.shape[0] < 16:
-        raise RuntimeError(f"Too few selected projected points in frame {frame}: {projected_depth.shape[0]}")
-    d_low, d_high = np.percentile(projected_depth, [5, 95]).astype(np.float32)
-    yy = np.linspace(0.0, 1.0, new_h, dtype=np.float32)[:, None]
-    xx = np.linspace(0.0, 1.0, new_w, dtype=np.float32)[None, :]
-    metric_depth = d_low + (d_high - d_low) * (0.20 + 0.55 * yy + 0.25 * xx)
-    metric_depth = np.clip(metric_depth, max(float(d_low), 1e-3), max(float(d_high), 1e-3))
-
     image_np = np.asarray(image_resized).astype(np.float32) / 255.0
     return {
         "frame": frame,
@@ -247,7 +378,8 @@ def load_sample(args: argparse.Namespace, frame: str, sample_seed: int) -> dict:
         "uv_sel": uv_sel,
         "depth_sel": depth_sel,
         "valid_sel": valid_sel,
-        "depth_p5_p95": [float(d_low), float(d_high)],
+        "depth_mode": args.depth_mode,
+        "depth_p5_p95": depth_p5_p95,
     }
 
 
@@ -286,6 +418,7 @@ def fused_forward(
     num_centers: int,
     generator_seed: int,
     extra_feature_mode: str,
+    extra_feature_scale: float,
     ipfp_detach: bool,
 ) -> tuple[torch.Tensor, dict]:
     coord = tensors["coord"]
@@ -319,6 +452,11 @@ def fused_forward(
         extra = {
             **extra,
             "feat": torch.zeros_like(extra["feat"]),
+        }
+    elif extra_feature_scale != 1.0:
+        extra = {
+            **extra,
+            "feat": extra["feat"] * extra_feature_scale,
         }
     point = point_cls(lidar_input)
     point.serialization(order=model.backbone.order, shuffle_orders=model.backbone.shuffle_orders)
@@ -375,8 +513,10 @@ def run_forward(
     tensors: dict,
     args: argparse.Namespace,
     generator_seed: int,
+    route: str | None = None,
 ) -> tuple[torch.Tensor, dict | None]:
-    if args.mode == "fused":
+    active_route = route or args.mode
+    if active_route == "fused":
         if ipfp is None:
             raise RuntimeError("IPFP module is required in fused mode")
         return fused_forward(
@@ -388,6 +528,7 @@ def run_forward(
             args.num_centers,
             generator_seed,
             args.extra_feature_mode,
+            args.extra_feature_scale,
             args.ipfp_detach,
         )
     return lidar_only_forward(model, point_cls, tensors, args.grid_size)
@@ -400,6 +541,7 @@ def evaluate_samples(
     samples: list[dict],
     args: argparse.Namespace,
     seed_base: int,
+    route: str | None = None,
 ) -> tuple[list[dict], np.ndarray, dict | None, dict]:
     model.eval()
     if ipfp is not None:
@@ -418,8 +560,9 @@ def evaluate_samples(
                 tensors,
                 args,
                 seed_base + index,
+                route=route,
             )
-            loss = F.cross_entropy(logits, tensors["segment"], ignore_index=-1)
+            loss, loss_parts = compute_loss(logits, tensors["segment"], args)
             pred = logits.argmax(dim=1)
             valid = tensors["segment"] >= 0
             acc = (
@@ -431,6 +574,7 @@ def evaluate_samples(
                 {
                     "frame": sample["frame"],
                     "loss": float(loss.detach().cpu().item()),
+                    **loss_parts,
                     "valid_acc": float(acc.detach().cpu().item()),
                     "valid_labels": int(valid.detach().cpu().sum().item()),
                 }
@@ -524,6 +668,7 @@ def save_selected_frame_visualizations(
     subdir_name: str = "selected_frame_visualizations",
     montage_name: str = "selected_frames_final_montage.png",
     prediction_label: str = "final",
+    route: str | None = None,
 ) -> list[str]:
     count = min(max(args.viz_frame_count, 0), len(samples))
     if count == 0:
@@ -550,6 +695,7 @@ def save_selected_frame_visualizations(
                 tensors,
                 args,
                 seed_base + index,
+                route=route,
             )
             pred = logits.argmax(dim=1).detach().cpu().numpy()
             gt_path = vis_dir / f"frame_{sample['frame']}_gt.png"
@@ -604,6 +750,8 @@ def main() -> None:
         / f"tiny_overfit_{args.mode}_seq{args.sequence}_{run_label}"
     )
     output_dir.mkdir(parents=True, exist_ok=True)
+    eval_route = primary_eval_route(args)
+    diagnostic_route = diagnostic_eval_route(args)
 
     if str(pointcept_root) not in sys.path:
         sys.path.insert(0, str(pointcept_root))
@@ -646,8 +794,9 @@ def main() -> None:
             hidden_channels=64,
             out_channels=cfg.model.backbone.enc_channels[0],
             patch_size=9,
-            lower_percentile=5,
-            upper_percentile=95,
+            lower_percentile=args.ipfp_lower_percentile,
+            upper_percentile=args.ipfp_upper_percentile,
+            discard_probability=args.ipfp_discard_probability,
         ).to(args.device)
     trainable_parameters = list(model.parameters())
     if ipfp is not None:
@@ -665,6 +814,7 @@ def main() -> None:
         samples,
         args,
         args.seed + 999,
+        route=eval_route,
     )
     save_prediction_artifacts(output_dir, "initial", samples[0], initial_pred, initial_extra)
     holdout_initial_eval_by_frame = []
@@ -682,6 +832,7 @@ def main() -> None:
             eval_samples,
             args,
             args.seed + 1999,
+            route=eval_route,
         )
         save_prediction_artifacts(
             output_dir,
@@ -708,7 +859,7 @@ def main() -> None:
             args,
             args.seed + step,
         )
-        loss = F.cross_entropy(logits, tensors["segment"], ignore_index=-1)
+        loss, loss_parts = compute_loss(logits, tensors["segment"], args)
         loss.backward()
         grad_norm = torch.nn.utils.clip_grad_norm_(trainable_parameters, max_norm=5.0)
         optimizer.step()
@@ -719,6 +870,7 @@ def main() -> None:
             "step": step,
             "frame": sample["frame"],
             "loss": float(loss.detach().cpu().item()),
+            **loss_parts,
             "valid_acc": float(acc.detach().cpu().item()),
             "grad_norm": float(grad_norm.detach().cpu().item() if torch.is_tensor(grad_norm) else grad_norm),
             "lr": args.lr,
@@ -736,11 +888,16 @@ def main() -> None:
         samples,
         args,
         args.seed + 999,
+        route=eval_route,
     )
     save_prediction_artifacts(output_dir, "final", samples[0], final_pred, final_extra)
     holdout_final_eval_by_frame = []
     holdout_viz_outputs = []
     holdout_final_eval_metrics = None
+    diagnostic_final_eval_by_frame = []
+    diagnostic_final_eval_metrics = None
+    diagnostic_holdout_final_eval_by_frame = []
+    diagnostic_holdout_final_eval_metrics = None
     if eval_samples:
         (
             holdout_final_eval_by_frame,
@@ -754,6 +911,7 @@ def main() -> None:
             eval_samples,
             args,
             args.seed + 1999,
+            route=eval_route,
         )
         save_prediction_artifacts(
             output_dir,
@@ -762,6 +920,50 @@ def main() -> None:
             holdout_final_pred,
             holdout_final_extra,
         )
+    if diagnostic_route is not None:
+        (
+            diagnostic_final_eval_by_frame,
+            diagnostic_final_pred,
+            diagnostic_final_extra,
+            diagnostic_final_eval_metrics,
+        ) = evaluate_samples(
+            model,
+            ipfp,
+            Point,
+            samples,
+            args,
+            args.seed + 2999,
+            route=diagnostic_route,
+        )
+        save_prediction_artifacts(
+            output_dir,
+            f"diagnostic_{diagnostic_route}_final",
+            samples[0],
+            diagnostic_final_pred,
+            diagnostic_final_extra,
+        )
+        if eval_samples:
+            (
+                diagnostic_holdout_final_eval_by_frame,
+                diagnostic_holdout_final_pred,
+                diagnostic_holdout_final_extra,
+                diagnostic_holdout_final_eval_metrics,
+            ) = evaluate_samples(
+                model,
+                ipfp,
+                Point,
+                eval_samples,
+                args,
+                args.seed + 3999,
+                route=diagnostic_route,
+            )
+            save_prediction_artifacts(
+                output_dir,
+                f"diagnostic_{diagnostic_route}_holdout_final",
+                eval_samples[0],
+                diagnostic_holdout_final_pred,
+                diagnostic_holdout_final_extra,
+            )
     selected_viz_outputs = save_selected_frame_visualizations(
         output_dir,
         model,
@@ -770,6 +972,7 @@ def main() -> None:
         samples,
         args,
         args.seed + 999,
+        route=eval_route,
     )
     if eval_samples:
         holdout_viz_outputs = save_selected_frame_visualizations(
@@ -783,6 +986,7 @@ def main() -> None:
             subdir_name="holdout_selected_frame_visualizations",
             montage_name="holdout_selected_frames_final_montage.png",
             prediction_label="holdout_final",
+            route=eval_route,
         )
     draw_loss_curve(records, output_dir / "loss_curve.png")
     initial_eval_mean_loss = float(np.mean([row["loss"] for row in initial_eval_by_frame]))
@@ -809,6 +1013,26 @@ def main() -> None:
         if holdout_final_eval_by_frame
         else None
     )
+    diagnostic_final_eval_mean_loss = (
+        float(np.mean([row["loss"] for row in diagnostic_final_eval_by_frame]))
+        if diagnostic_final_eval_by_frame
+        else None
+    )
+    diagnostic_final_eval_mean_acc = (
+        float(np.mean([row["valid_acc"] for row in diagnostic_final_eval_by_frame]))
+        if diagnostic_final_eval_by_frame
+        else None
+    )
+    diagnostic_holdout_final_eval_mean_loss = (
+        float(np.mean([row["loss"] for row in diagnostic_holdout_final_eval_by_frame]))
+        if diagnostic_holdout_final_eval_by_frame
+        else None
+    )
+    diagnostic_holdout_final_eval_mean_acc = (
+        float(np.mean([row["valid_acc"] for row in diagnostic_holdout_final_eval_by_frame]))
+        if diagnostic_holdout_final_eval_by_frame
+        else None
+    )
     outputs = [
         "overfit_log.jsonl",
         "loss_curve.png",
@@ -822,8 +1046,9 @@ def main() -> None:
         "OVERFIT_NOTES.md",
         *selected_viz_outputs,
     ]
-    if args.mode == "fused":
+    if initial_extra is not None:
         outputs.insert(5, "initial_image_ipfp_extra_projection.png")
+    if final_extra is not None:
         outputs.insert(9, "final_image_ipfp_extra_projection.png")
     if eval_samples:
         holdout_outputs = [
@@ -835,15 +1060,44 @@ def main() -> None:
             "holdout_final_image_lidar_depth_projection.png",
             *holdout_viz_outputs,
         ]
-        if args.mode == "fused":
+        if holdout_initial_eval_by_frame and holdout_initial_extra is not None:
             holdout_outputs.insert(3, "holdout_initial_image_ipfp_extra_projection.png")
+        if holdout_final_eval_by_frame and holdout_final_extra is not None:
             holdout_outputs.insert(7, "holdout_final_image_ipfp_extra_projection.png")
         outputs.extend(holdout_outputs)
+    if diagnostic_route is not None:
+        diagnostic_prefix = f"diagnostic_{diagnostic_route}_final"
+        outputs.extend(
+            [
+                f"{diagnostic_prefix}_bev_ground_truth.png",
+                f"{diagnostic_prefix}_bev_prediction.png",
+                f"{diagnostic_prefix}_image_lidar_depth_projection.png",
+            ]
+        )
+        if diagnostic_final_eval_by_frame and diagnostic_final_extra is not None:
+            outputs.append(f"{diagnostic_prefix}_image_ipfp_extra_projection.png")
+        if eval_samples:
+            diagnostic_holdout_prefix = f"diagnostic_{diagnostic_route}_holdout_final"
+            outputs.extend(
+                [
+                    f"{diagnostic_holdout_prefix}_bev_ground_truth.png",
+                    f"{diagnostic_holdout_prefix}_bev_prediction.png",
+                    f"{diagnostic_holdout_prefix}_image_lidar_depth_projection.png",
+                ]
+            )
+            if diagnostic_holdout_final_eval_by_frame and diagnostic_holdout_final_extra is not None:
+                outputs.append(f"{diagnostic_holdout_prefix}_image_ipfp_extra_projection.png")
 
     summary = {
         "status": "OK",
         "sequence": args.sequence,
         "mode": args.mode,
+        "eval_route": args.eval_route,
+        "primary_eval_route": eval_route,
+        "diagnostic_eval_route": diagnostic_route,
+        "depth_mode": args.depth_mode,
+        "loss_mode": args.loss_mode,
+        "lovasz_weight": args.lovasz_weight,
         "frames": args.frames,
         "eval_frames": args.eval_frames or [],
         "frame_label": frame_label,
@@ -851,7 +1105,11 @@ def main() -> None:
         "num_points": args.num_points,
         "num_centers": args.num_centers,
         "extra_feature_mode": args.extra_feature_mode,
+        "extra_feature_scale": args.extra_feature_scale,
         "ipfp_detach": args.ipfp_detach,
+        "ipfp_lower_percentile": args.ipfp_lower_percentile,
+        "ipfp_upper_percentile": args.ipfp_upper_percentile,
+        "ipfp_discard_probability": args.ipfp_discard_probability,
         "image_width": args.image_width,
         "viz_frame_count": args.viz_frame_count,
         "steps": args.steps,
@@ -890,11 +1148,31 @@ def main() -> None:
         else None,
         "holdout_initial_eval_by_frame": holdout_initial_eval_by_frame,
         "holdout_final_eval_by_frame": holdout_final_eval_by_frame,
+        "diagnostic_final_eval_mean_loss": diagnostic_final_eval_mean_loss,
+        "diagnostic_final_eval_mean_acc": diagnostic_final_eval_mean_acc,
+        "diagnostic_final_eval_mean_iou": diagnostic_final_eval_metrics["mean_iou"]
+        if diagnostic_final_eval_metrics
+        else None,
+        "diagnostic_final_eval_overall_acc": diagnostic_final_eval_metrics["overall_accuracy"]
+        if diagnostic_final_eval_metrics
+        else None,
+        "diagnostic_holdout_final_eval_mean_loss": diagnostic_holdout_final_eval_mean_loss,
+        "diagnostic_holdout_final_eval_mean_acc": diagnostic_holdout_final_eval_mean_acc,
+        "diagnostic_holdout_final_eval_mean_iou": diagnostic_holdout_final_eval_metrics["mean_iou"]
+        if diagnostic_holdout_final_eval_metrics
+        else None,
+        "diagnostic_holdout_final_eval_overall_acc": diagnostic_holdout_final_eval_metrics["overall_accuracy"]
+        if diagnostic_holdout_final_eval_metrics
+        else None,
+        "diagnostic_final_eval_by_frame": diagnostic_final_eval_by_frame,
+        "diagnostic_holdout_final_eval_by_frame": diagnostic_holdout_final_eval_by_frame,
         "metrics": {
             "train_initial": initial_eval_metrics,
             "train_final": final_eval_metrics,
             "holdout_initial": holdout_initial_eval_metrics,
             "holdout_final": holdout_final_eval_metrics,
+            "diagnostic_train_final": diagnostic_final_eval_metrics,
+            "diagnostic_holdout_final": diagnostic_holdout_final_eval_metrics,
         },
         "train_first_loss": records[0]["loss"] if records else None,
         "train_final_loss": records[-1]["loss"] if records else None,
@@ -902,6 +1180,7 @@ def main() -> None:
         "train_final_acc": records[-1]["valid_acc"] if records else None,
         "raw_points_first_frame": samples[0]["raw_points"],
         "valid_labels_first_sample": int((samples[0]["segment_np"] >= 0).sum()),
+        "depth_p5_p95_first_frame": samples[0]["depth_p5_p95"],
         "cuda_max_memory_gb": round(torch.cuda.max_memory_allocated() / (1024**3), 3)
         if args.device == "cuda"
         else 0.0,
@@ -924,6 +1203,14 @@ def main() -> None:
         "",
         "## Summary",
         "",
+        f"- Train route: {args.mode}",
+        f"- Primary eval route: {eval_route}",
+        f"- Diagnostic eval route: {diagnostic_route or 'none'}",
+        f"- Depth mode: {args.depth_mode}, first-frame p5/p95: {samples[0]['depth_p5_p95']}",
+        f"- Loss mode: {args.loss_mode}, Lovasz weight: {args.lovasz_weight}",
+        f"- Extra feature mode/scale: {args.extra_feature_mode}, {args.extra_feature_scale:.3f}",
+        f"- IPFP depth percentile range: {args.ipfp_lower_percentile:.1f}-{args.ipfp_upper_percentile:.1f}",
+        f"- IPFP discard probability: {args.ipfp_discard_probability:.3f}",
         f"- Initial eval loss, first frame: {summary['initial_eval_loss']:.6f}",
         f"- Final eval loss, first frame: {summary['final_eval_loss']:.6f}",
         f"- Initial eval mean loss: {summary['initial_eval_mean_loss']:.6f}",
@@ -958,6 +1245,28 @@ def main() -> None:
                 "",
             ]
         )
+    if diagnostic_route is not None and diagnostic_final_eval_by_frame:
+        notes.extend(
+            [
+                f"## Diagnostic {diagnostic_route} Eval",
+                "",
+                f"- Train final mean loss: {diagnostic_final_eval_mean_loss:.6f}",
+                f"- Train final mean accuracy: {diagnostic_final_eval_mean_acc:.6f}",
+                f"- Train final mIoU: {fmt_metric(summary['diagnostic_final_eval_mean_iou'])}",
+                f"- Train final overall accuracy: {fmt_metric(summary['diagnostic_final_eval_overall_acc'])}",
+                "",
+            ]
+        )
+        if diagnostic_holdout_final_eval_by_frame:
+            notes.extend(
+                [
+                    f"- Holdout final mean loss: {diagnostic_holdout_final_eval_mean_loss:.6f}",
+                    f"- Holdout final mean accuracy: {diagnostic_holdout_final_eval_mean_acc:.6f}",
+                    f"- Holdout final mIoU: {fmt_metric(summary['diagnostic_holdout_final_eval_mean_iou'])}",
+                    f"- Holdout final overall accuracy: {fmt_metric(summary['diagnostic_holdout_final_eval_overall_acc'])}",
+                    "",
+                ]
+            )
     notes.extend(
         [
             "## Train-Frame Eval",

@@ -90,6 +90,33 @@ zeroed extra features, and detached IPFP features.
 The diagnostic signal is that learned image features are currently harmful, while
 extra geometry/tokens are not inherently harmful. See `IPFP_ABLATION_EXPERIMENTS.md`.
 
+## Paper-Aligned Diagnostic
+
+This diagnostic keeps the `100/50` split but changes the most likely
+paper-mismatch points: LiDAR-only primary eval for fused training, sparse LiDAR
+depth inpainting, CE+Lovasz, fewer IPFP centers, a `20-99` depth percentile
+range, and IPFP token discard.
+
+| Route | Primary eval route | Holdout final overall acc | Holdout final mIoU | Diagnostic fused holdout mIoU |
+| --- | --- | ---: | ---: | ---: |
+| LiDAR-only CE+Lovasz | LiDAR-only | 60.36% | 14.71% | n/a |
+| Paper-aligned IPFP | LiDAR-only | 60.67% | 14.51% | 14.49% |
+
+The follow-up feature gate sweep scales the learned IPFP feature content while
+keeping the extra point geometry and the same paper-aligned controls.
+
+| Extra feature scale | Holdout final overall acc | Holdout final mIoU | Diagnostic fused holdout mIoU |
+| ---: | ---: | ---: | ---: |
+| 0.00 | 60.35% | 14.89% | 14.92% |
+| 0.10 | 61.73% | 15.23% | 15.32% |
+| 0.25 | 61.10% | 15.23% | 15.04% |
+| 0.50 | 59.88% | 14.93% | 15.05% |
+| 1.00 | 54.45% | 12.95% | 12.85% |
+
+The current best setting is `extra-feature-scale=0.1`, which beats the
+paper-aligned LiDAR-only control on sampled holdout mIoU. See
+`PAPER_ALIGNED_EXPERIMENTS.md`.
+
 ## 50-Frame Visualization
 
 The 50-frame run includes a selected-frame montage:
@@ -100,14 +127,14 @@ The 50-frame run includes a selected-frame montage:
 
 - Tiny-overfit results are not benchmark results.
 - The mIoU in the expanded split is sampled-point mIoU from this reproduction script, not official full-frame SemanticKITTI mIoU.
-- The implementation uses a lightweight pseudo metric-depth field for the IPFP back-projection test path. A full paper-faithful experiment should replace this with a proper metric-depth source or the intended depth recovery pipeline.
+- The paper-aligned diagnostic now includes sparse LiDAR depth inpainting, but it still is not the paper's full Depth Anything V2 / UniDepth / IP-BASIC depth pipeline.
 - Pointcept PTv2 SemanticKITTI config was not used as the main route because it required a compatible `pyg-lib>=0.6.0` binary for `voxel_grid` in the active environment.
 - PointROPE CUDA was not available, so PTv3 used the PyTorch fallback path in the validated environment.
 
 ## Next Steps
 
-1. Add an image-feature gate and sweep feature weights on the `100/50` split.
-2. Replace pseudo metric depth with a real depth estimator or calibrated depth recovery.
+1. Promote `extra-feature-scale=0.1` as the current IPFP control and test it on larger/full-frame evaluation.
+2. Replace sparse LiDAR inpainting with the paper's full depth-estimator path.
 3. Convert the script path into a proper SemanticKITTI dataloader and trainer.
-4. Scale only after the fused route becomes competitive on `100/50`.
+4. Scale the gated route beyond `100/50`.
 5. Add official-style full-frame mIoU evaluation on SemanticKITTI sequence `08`.

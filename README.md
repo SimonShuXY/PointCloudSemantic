@@ -12,6 +12,7 @@ This repository contains:
 - `docs/HOLDOUT_EXPERIMENTS.md`: first LiDAR-only vs PTv3+IPFP train/holdout comparison.
 - `docs/EXPANDED_SPLIT_EXPERIMENTS.md`: larger split comparison with sampled mIoU.
 - `docs/IPFP_ABLATION_EXPERIMENTS.md`: diagnosis of IPFP extra-point and feature variants.
+- `docs/PAPER_ALIGNED_EXPERIMENTS.md`: paper-style evaluation/depth/loss diagnostic.
 
 ## What Is Implemented
 
@@ -76,6 +77,28 @@ breaking:
 The current bottleneck is therefore the learned image-feature branch and its training
 coupling, not simply the presence of extra back-projected points.
 
+The paper-aligned diagnostic keeps the `100/50` split but switches to LiDAR-only
+primary eval, sparse LiDAR depth inpainting, CE+Lovasz, and a less aggressive
+IPFP token setup:
+
+| Route | Primary eval route | Holdout final overall acc | Holdout final mIoU |
+| --- | --- | ---: | ---: |
+| LiDAR-only CE+Lovasz | LiDAR-only | 60.36% | 14.71% |
+| Paper-aligned IPFP | LiDAR-only | 60.67% | 14.51% |
+
+Adding a scalar gate on the IPFP learned feature content changes the picture:
+
+| Extra feature scale | Holdout final overall acc | Holdout final mIoU |
+| ---: | ---: | ---: |
+| 0.00 | 60.35% | 14.89% |
+| 0.10 | 61.73% | 15.23% |
+| 0.25 | 61.10% | 15.23% |
+| 0.50 | 59.88% | 14.93% |
+| 1.00 | 54.45% | 12.95% |
+
+The best current route is paper-aligned IPFP with `extra-feature-scale=0.1`,
+which beats the paper-aligned LiDAR-only control on this sampled split.
+
 Example 50-frame visualization:
 
 ![50-frame montage](results/semantic_kitti_repro/tiny_overfit_seq00_000000-000049_20260628_120319/selected_frames_final_montage.png)
@@ -128,7 +151,7 @@ python scripts/semantic_kitti_ipfp_tiny_overfit.py \
 See `docs/REPRODUCTION.md` for more detail. For the LiDAR-only vs IPFP controls,
 see `docs/CONTROL_EXPERIMENTS.md`, `docs/HOLDOUT_EXPERIMENTS.md`, and
 `docs/EXPANDED_SPLIT_EXPERIMENTS.md`. For IPFP diagnostics, see
-`docs/IPFP_ABLATION_EXPERIMENTS.md`.
+`docs/IPFP_ABLATION_EXPERIMENTS.md` and `docs/PAPER_ALIGNED_EXPERIMENTS.md`.
 
 ## Data
 
