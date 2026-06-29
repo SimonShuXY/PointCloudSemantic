@@ -63,8 +63,11 @@ PTv3 + IPFP:
 
 ## Next Steps
 
-1. Repeat this control with multiple seeds to check whether the holdout delta is stable.
-2. Expand from `50/20` frames to a larger train/validation slice.
-3. Replace the pseudo metric-depth path with a stronger calibrated depth source.
-4. Move from sampled-point accuracy to SemanticKITTI-style class IoU and mIoU.
-5. Turn the script path into a proper dataloader/trainer before full sequence 08 evaluation.
+The direct expansion has been run as `100 train / 50 holdout` with sampled mIoU.
+That larger split favors LiDAR-only rather than the current fused route; see
+`EXPANDED_SPLIT_EXPERIMENTS.md`.
+
+1. Diagnose the fused route with IPFP ablations on the `100/50` split.
+2. Replace the pseudo metric-depth path with a stronger calibrated depth source.
+3. Move from sampled-point mIoU to full-frame SemanticKITTI-style mIoU.
+4. Turn the script path into a proper dataloader/trainer before full sequence `08` evaluation.

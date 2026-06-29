@@ -10,6 +10,7 @@ This repository contains:
 - `docs/DATASETS.md`: dataset download links used in the experiments.
 - `docs/EXPERIMENTS.md`: summary of completed sanity checks and tiny-overfit runs.
 - `docs/HOLDOUT_EXPERIMENTS.md`: first LiDAR-only vs PTv3+IPFP train/holdout comparison.
+- `docs/EXPANDED_SPLIT_EXPERIMENTS.md`: larger split comparison with sampled mIoU.
 
 ## What Is Implemented
 
@@ -49,6 +50,17 @@ frames `000050-000069` only for evaluation:
 This is still a small reproduction check rather than a benchmark result, but it is a
 more useful signal than pure tiny-overfit: the fused route matches train-frame accuracy
 and improves holdout accuracy by about 2.34 percentage points.
+
+The expanded `100 train / 50 holdout` split adds sampled-point mIoU and reverses that
+small-split signal:
+
+| Route | Train final mIoU | Holdout final overall acc | Holdout final mIoU |
+| --- | ---: | ---: | ---: |
+| PTv3 LiDAR-only | 48.55% | 61.51% | 15.30% |
+| PTv3 + IPFP | 41.76% | 56.67% | 13.41% |
+
+This suggests the current minimal IPFP scaffold needs depth/image-branch diagnosis
+before scaling to heavier training.
 
 Example 50-frame visualization:
 
@@ -99,8 +111,9 @@ python scripts/semantic_kitti_ipfp_tiny_overfit.py \
   --device cuda
 ```
 
-See `docs/REPRODUCTION.md` for more detail. For the first LiDAR-only vs IPFP
-controls, see `docs/CONTROL_EXPERIMENTS.md` and `docs/HOLDOUT_EXPERIMENTS.md`.
+See `docs/REPRODUCTION.md` for more detail. For the LiDAR-only vs IPFP controls,
+see `docs/CONTROL_EXPERIMENTS.md`, `docs/HOLDOUT_EXPERIMENTS.md`, and
+`docs/EXPANDED_SPLIT_EXPERIMENTS.md`.
 
 ## Data
 

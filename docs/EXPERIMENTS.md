@@ -60,6 +60,20 @@ evaluates on held-out frames `000050-000069`.
 The fused route has nearly identical train-frame accuracy and better holdout loss and
 accuracy in this small control. See `HOLDOUT_EXPERIMENTS.md` for artifacts and caveats.
 
+## Expanded Split With Sampled mIoU
+
+The expanded split trains on `seq00` frames `000000-000099` and evaluates on held-out
+frames `000100-000149`. This run adds sampled-point confusion matrices, per-class IoU,
+and mIoU to `summary.json`.
+
+| Route | Train-frame final mIoU | Holdout final overall acc | Holdout final mIoU |
+| --- | ---: | ---: | ---: |
+| PTv3 LiDAR-only | 48.55% | 61.51% | 15.30% |
+| PTv3 + IPFP | 41.76% | 56.67% | 13.41% |
+
+The expanded split reverses the small `50/20` signal: the current fused route is worse
+than LiDAR-only on holdout mIoU. See `EXPANDED_SPLIT_EXPERIMENTS.md`.
+
 ## 50-Frame Visualization
 
 The 50-frame run includes a selected-frame montage:
@@ -69,14 +83,15 @@ The 50-frame run includes a selected-frame montage:
 ## Important Caveats
 
 - Tiny-overfit results are not benchmark results.
+- The mIoU in the expanded split is sampled-point mIoU from this reproduction script, not official full-frame SemanticKITTI mIoU.
 - The implementation uses a lightweight pseudo metric-depth field for the IPFP back-projection test path. A full paper-faithful experiment should replace this with a proper metric-depth source or the intended depth recovery pipeline.
 - Pointcept PTv2 SemanticKITTI config was not used as the main route because it required a compatible `pyg-lib>=0.6.0` binary for `voxel_grid` in the active environment.
 - PointROPE CUDA was not available, so PTv3 used the PyTorch fallback path in the validated environment.
 
 ## Next Steps
 
-1. Repeat the train/holdout comparison with multiple seeds.
-2. Convert the script path into a proper SemanticKITTI dataloader and trainer.
-3. Replace pseudo metric depth with a real depth estimator or calibrated depth recovery.
-4. Scale from tiny-overfit to larger train/validation split experiments.
-5. Add quantitative mIoU evaluation on SemanticKITTI sequence 08.
+1. Diagnose the fused route with IPFP ablations on the `100/50` split.
+2. Replace pseudo metric depth with a real depth estimator or calibrated depth recovery.
+3. Convert the script path into a proper SemanticKITTI dataloader and trainer.
+4. Scale only after the fused route becomes competitive on `100/50`.
+5. Add official-style full-frame mIoU evaluation on SemanticKITTI sequence `08`.

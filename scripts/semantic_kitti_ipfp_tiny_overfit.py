@@ -29,6 +29,30 @@ from semantic_kitti_ipfp_visualize import (  # noqa: E402
 )
 
 
+CLASS_NAMES = [
+    "car",
+    "bicycle",
+    "motorcycle",
+    "truck",
+    "other-vehicle",
+    "person",
+    "bicyclist",
+    "motorcyclist",
+    "road",
+    "parking",
+    "sidewalk",
+    "other-ground",
+    "building",
+    "fence",
+    "vegetation",
+    "trunk",
+    "terrain",
+    "pole",
+    "traffic-sign",
+]
+NUM_CLASSES = len(CLASS_NAMES)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Tiny-overfit PTv3/IPFP on one or a few SemanticKITTI frames.")
     parser.add_argument("--root", default="/root/autodl-tmp/ipfp_repro")
@@ -70,6 +94,75 @@ def compact_frame_label(frames: list[str]) -> str:
 
 def remap_labels(labels_raw: np.ndarray) -> np.ndarray:
     return np.vectorize(lambda x: LEARNING_MAP.get(int(x), -1))(labels_raw).astype(np.int64)
+
+
+def update_confusion_matrix(confusion: np.ndarray, target: np.ndarray, pred: np.ndarray) -> None:
+    valid = (target >= 0) & (target < NUM_CLASSES) & (pred >= 0) & (pred < NUM_CLASSES)
+    if not np.any(valid):
+        return
+    indices = target[valid].astype(np.int64) * NUM_CLASSES + pred[valid].astype(np.int64)
+    confusion += np.bincount(indices, minlength=NUM_CLASSES * NUM_CLASSES).reshape(NUM_CLASSES, NUM_CLASSES)
+
+
+def _maybe_float(value: np.floating | float, valid: bool) -> float | None:
+    return float(value) if valid else None
+
+
+def metrics_from_confusion(confusion: np.ndarray) -> dict:
+    true_positive = np.diag(confusion).astype(np.float64)
+    gt_count = confusion.sum(axis=1).astype(np.float64)
+    pred_count = confusion.sum(axis=0).astype(np.float64)
+    union = gt_count + pred_count - true_positive
+    iou = np.divide(true_positive, union, out=np.zeros_like(true_positive), where=union > 0)
+    class_acc = np.divide(true_positive, gt_count, out=np.zeros_like(true_positive), where=gt_count > 0)
+    present_iou = union > 0
+    present_acc = gt_count > 0
+    total_valid = int(gt_count.sum())
+    overall_acc = float(true_positive.sum() / gt_count.sum()) if total_valid else None
+    fw_iou = float((gt_count[present_iou] * iou[present_iou]).sum() / gt_count.sum()) if total_valid else None
+    class_metrics = []
+    for class_id, class_name in enumerate(CLASS_NAMES):
+        class_metrics.append(
+            {
+                "class_id": class_id,
+                "class_name": class_name,
+                "iou": _maybe_float(iou[class_id], bool(union[class_id] > 0)),
+                "accuracy": _maybe_float(class_acc[class_id], bool(gt_count[class_id] > 0)),
+                "tp": int(true_positive[class_id]),
+                "gt_count": int(gt_count[class_id]),
+                "pred_count": int(pred_count[class_id]),
+                "union": int(union[class_id]),
+            }
+        )
+    return {
+        "overall_accuracy": overall_acc,
+        "mean_iou": float(iou[present_iou].mean()) if np.any(present_iou) else None,
+        "mean_class_accuracy": float(class_acc[present_acc].mean()) if np.any(present_acc) else None,
+        "frequency_weighted_iou": fw_iou,
+        "valid_points": total_valid,
+        "present_iou_classes": int(present_iou.sum()),
+        "present_gt_classes": int(present_acc.sum()),
+        "class_metrics": class_metrics,
+        "confusion_matrix": confusion.astype(np.int64).tolist(),
+    }
+
+
+def fmt_metric(value: float | None) -> str:
+    return f"{value:.6f}" if value is not None else "n/a"
+
+
+def append_class_iou_notes(notes: list[str], title: str, metrics: dict | None) -> None:
+    if not metrics:
+        return
+    notes.extend(["", title, ""])
+    for item in metrics["class_metrics"]:
+        if item["union"] == 0:
+            continue
+        notes.append(
+            f"- {item['class_id']:02d} {item['class_name']}: "
+            f"IoU {fmt_metric(item['iou'])}, acc {fmt_metric(item['accuracy'])}, "
+            f"gt {item['gt_count']}, pred {item['pred_count']}, tp {item['tp']}"
+        )
 
 
 def load_sample(args: argparse.Namespace, frame: str, sample_seed: int) -> dict:
@@ -290,13 +383,14 @@ def evaluate_samples(
     samples: list[dict],
     args: argparse.Namespace,
     seed_base: int,
-) -> tuple[list[dict], np.ndarray, dict | None]:
+) -> tuple[list[dict], np.ndarray, dict | None, dict]:
     model.eval()
     if ipfp is not None:
         ipfp.eval()
     rows = []
     first_pred = None
     first_extra = None
+    confusion = np.zeros((NUM_CLASSES, NUM_CLASSES), dtype=np.int64)
     with torch.no_grad():
         for index, sample in enumerate(samples):
             tensors = sample_to_tensors(sample, args.device)
@@ -327,9 +421,14 @@ def evaluate_samples(
             if index == 0:
                 first_pred = pred.detach().cpu().numpy()
                 first_extra = extra
+            update_confusion_matrix(
+                confusion,
+                tensors["segment"].detach().cpu().numpy(),
+                pred.detach().cpu().numpy(),
+            )
     if first_pred is None:
         raise RuntimeError("No samples evaluated")
-    return rows, first_pred, first_extra
+    return rows, first_pred, first_extra, metrics_from_confusion(confusion)
 
 
 def draw_loss_curve(records: list[dict], output: Path) -> None:
@@ -542,7 +641,7 @@ def main() -> None:
         weight_decay=args.weight_decay,
     )
 
-    initial_eval_by_frame, initial_pred, initial_extra = evaluate_samples(
+    initial_eval_by_frame, initial_pred, initial_extra, initial_eval_metrics = evaluate_samples(
         model,
         ipfp,
         Point,
@@ -552,8 +651,14 @@ def main() -> None:
     )
     save_prediction_artifacts(output_dir, "initial", samples[0], initial_pred, initial_extra)
     holdout_initial_eval_by_frame = []
+    holdout_initial_eval_metrics = None
     if eval_samples:
-        holdout_initial_eval_by_frame, holdout_initial_pred, holdout_initial_extra = evaluate_samples(
+        (
+            holdout_initial_eval_by_frame,
+            holdout_initial_pred,
+            holdout_initial_extra,
+            holdout_initial_eval_metrics,
+        ) = evaluate_samples(
             model,
             ipfp,
             Point,
@@ -607,7 +712,7 @@ def main() -> None:
         if step == 1 or step % max(1, args.steps // 10) == 0 or step == args.steps:
             print(json.dumps(record, ensure_ascii=False), flush=True)
 
-    final_eval_by_frame, final_pred, final_extra = evaluate_samples(
+    final_eval_by_frame, final_pred, final_extra, final_eval_metrics = evaluate_samples(
         model,
         ipfp,
         Point,
@@ -618,8 +723,14 @@ def main() -> None:
     save_prediction_artifacts(output_dir, "final", samples[0], final_pred, final_extra)
     holdout_final_eval_by_frame = []
     holdout_viz_outputs = []
+    holdout_final_eval_metrics = None
     if eval_samples:
-        holdout_final_eval_by_frame, holdout_final_pred, holdout_final_extra = evaluate_samples(
+        (
+            holdout_final_eval_by_frame,
+            holdout_final_pred,
+            holdout_final_extra,
+            holdout_final_eval_metrics,
+        ) = evaluate_samples(
             model,
             ipfp,
             Point,
@@ -736,14 +847,36 @@ def main() -> None:
         "final_eval_mean_loss": final_eval_mean_loss,
         "initial_eval_mean_acc": initial_eval_mean_acc,
         "final_eval_mean_acc": final_eval_mean_acc,
+        "initial_eval_mean_iou": initial_eval_metrics["mean_iou"],
+        "final_eval_mean_iou": final_eval_metrics["mean_iou"],
+        "initial_eval_overall_acc": initial_eval_metrics["overall_accuracy"],
+        "final_eval_overall_acc": final_eval_metrics["overall_accuracy"],
         "initial_eval_by_frame": initial_eval_by_frame,
         "final_eval_by_frame": final_eval_by_frame,
         "holdout_initial_eval_mean_loss": holdout_initial_eval_mean_loss,
         "holdout_final_eval_mean_loss": holdout_final_eval_mean_loss,
         "holdout_initial_eval_mean_acc": holdout_initial_eval_mean_acc,
         "holdout_final_eval_mean_acc": holdout_final_eval_mean_acc,
+        "holdout_initial_eval_mean_iou": holdout_initial_eval_metrics["mean_iou"]
+        if holdout_initial_eval_metrics
+        else None,
+        "holdout_final_eval_mean_iou": holdout_final_eval_metrics["mean_iou"]
+        if holdout_final_eval_metrics
+        else None,
+        "holdout_initial_eval_overall_acc": holdout_initial_eval_metrics["overall_accuracy"]
+        if holdout_initial_eval_metrics
+        else None,
+        "holdout_final_eval_overall_acc": holdout_final_eval_metrics["overall_accuracy"]
+        if holdout_final_eval_metrics
+        else None,
         "holdout_initial_eval_by_frame": holdout_initial_eval_by_frame,
         "holdout_final_eval_by_frame": holdout_final_eval_by_frame,
+        "metrics": {
+            "train_initial": initial_eval_metrics,
+            "train_final": final_eval_metrics,
+            "holdout_initial": holdout_initial_eval_metrics,
+            "holdout_final": holdout_final_eval_metrics,
+        },
         "train_first_loss": records[0]["loss"] if records else None,
         "train_final_loss": records[-1]["loss"] if records else None,
         "train_best_loss": min((r["loss"] for r in records), default=None),
@@ -778,6 +911,10 @@ def main() -> None:
         f"- Final eval mean loss: {summary['final_eval_mean_loss']:.6f}",
         f"- Initial eval mean accuracy: {summary['initial_eval_mean_acc']:.6f}",
         f"- Final eval mean accuracy: {summary['final_eval_mean_acc']:.6f}",
+        f"- Initial eval mIoU: {fmt_metric(summary['initial_eval_mean_iou'])}",
+        f"- Final eval mIoU: {fmt_metric(summary['final_eval_mean_iou'])}",
+        f"- Initial eval overall accuracy: {fmt_metric(summary['initial_eval_overall_acc'])}",
+        f"- Final eval overall accuracy: {fmt_metric(summary['final_eval_overall_acc'])}",
         f"- First train loss: {summary['train_first_loss']:.6f}",
         f"- Final train loss: {summary['train_final_loss']:.6f}",
         f"- Best train loss: {summary['train_best_loss']:.6f}",
@@ -795,6 +932,10 @@ def main() -> None:
                 f"- Holdout final mean loss: {holdout_final_eval_mean_loss:.6f}",
                 f"- Holdout initial mean accuracy: {holdout_initial_eval_mean_acc:.6f}",
                 f"- Holdout final mean accuracy: {holdout_final_eval_mean_acc:.6f}",
+                f"- Holdout initial mIoU: {fmt_metric(summary['holdout_initial_eval_mean_iou'])}",
+                f"- Holdout final mIoU: {fmt_metric(summary['holdout_final_eval_mean_iou'])}",
+                f"- Holdout initial overall accuracy: {fmt_metric(summary['holdout_initial_eval_overall_acc'])}",
+                f"- Holdout final overall accuracy: {fmt_metric(summary['holdout_final_eval_overall_acc'])}",
                 "",
             ]
         )
@@ -805,10 +946,11 @@ def main() -> None:
         ]
     )
     for before, after in zip(initial_eval_by_frame, final_eval_by_frame):
-        notes.append(
-            f"- Frame {before['frame']}: loss {before['loss']:.6f} -> {after['loss']:.6f}, "
-            f"accuracy {before['valid_acc']:.6f} -> {after['valid_acc']:.6f}"
-        )
+            notes.append(
+                f"- Frame {before['frame']}: loss {before['loss']:.6f} -> {after['loss']:.6f}, "
+                f"accuracy {before['valid_acc']:.6f} -> {after['valid_acc']:.6f}"
+            )
+    append_class_iou_notes(notes, "## Train Final Class IoU", final_eval_metrics)
     if holdout_final_eval_by_frame:
         notes.extend(
             [
@@ -822,6 +964,7 @@ def main() -> None:
                 f"- Frame {before['frame']}: loss {before['loss']:.6f} -> {after['loss']:.6f}, "
                 f"accuracy {before['valid_acc']:.6f} -> {after['valid_acc']:.6f}"
             )
+        append_class_iou_notes(notes, "## Holdout Final Class IoU", holdout_final_eval_metrics)
     notes.append("")
     (output_dir / "OVERFIT_NOTES.md").write_text("\n".join(notes))
     print(json.dumps(summary, indent=2, ensure_ascii=False), flush=True)

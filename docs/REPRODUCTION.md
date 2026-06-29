@@ -174,4 +174,27 @@ python scripts/semantic_kitti_ipfp_tiny_overfit.py \
 # Repeat with --mode lidar-only for the control route.
 ```
 
+Expanded split with sampled mIoU:
+
+```bash
+TRAIN_FRAMES=($(seq -f "%06g" 0 99))
+HOLDOUT_FRAMES=($(seq -f "%06g" 100 149))
+
+python scripts/semantic_kitti_ipfp_tiny_overfit.py \
+  --root "$ROOT" \
+  --sequence 00 \
+  --frames "${TRAIN_FRAMES[@]}" \
+  --eval-frames "${HOLDOUT_FRAMES[@]}" \
+  --num-points 2048 \
+  --num-centers 64 \
+  --image-width 480 \
+  --steps 1000 \
+  --lr 5e-4 \
+  --viz-frame-count 8 \
+  --mode fused \
+  --device cuda
+
+# Repeat with --mode lidar-only for the control route.
+```
+
 The tiny-overfit runs are sanity checks. They validate the training path, not benchmark generalization.
