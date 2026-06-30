@@ -88,6 +88,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rare-class-sampling-prob", type=float, default=0.0)
     parser.add_argument("--balanced-point-sampling-prob", type=float, default=0.0)
     parser.add_argument("--spatial-crop-radius", type=float, default=0.0)
+    parser.add_argument("--fused-min-visible-points", type=int, default=512)
+    parser.add_argument("--train-sample-retries", type=int, default=12)
+    parser.add_argument("--fused-train-fallback", choices=["error", "lidar-only"], default="lidar-only")
     return parser.parse_args()
 
 
@@ -345,10 +348,15 @@ def choose_train_indices(
                 candidate_pool = crop_pool
 
     if args.mode == "fused" and "valid_all" in frame_data:
+        visible_frame = np.flatnonzero((labels >= 0) & frame_data["valid_all"] & (frame_data["depth_all"] > 0))
         candidate_mask = np.zeros(labels.shape[0], dtype=bool)
         candidate_mask[candidate_pool] = True
         visible_valid = np.flatnonzero((labels >= 0) & frame_data["valid_all"] & candidate_mask)
-        take_visible = min(visible_valid.size, max(n // 2, min(n, 512)))
+        visible_valid = visible_valid[frame_data["depth_all"][visible_valid] > 0]
+        required_visible = min(n, max(1, args.fused_min_visible_points))
+        if visible_valid.size < required_visible and visible_frame.size > visible_valid.size:
+            visible_valid = visible_frame
+        take_visible = min(visible_valid.size, max(n // 2, required_visible, min(n, 512)))
         chosen_parts = []
         if take_visible > 0:
             chosen_visible = rng.choice(visible_valid, size=take_visible, replace=False)
@@ -401,6 +409,20 @@ def make_sample(frame_data: dict, indices: np.ndarray, need_image: bool) -> dict
             }
         )
     return sample
+
+
+def fused_visible_point_count(sample: dict) -> int | None:
+    if "valid_sel" not in sample:
+        return None
+    return int((sample["valid_sel"] & (sample["depth_sel"] > 0)).sum())
+
+
+def is_fused_sampling_error(exc: ValueError) -> bool:
+    message = str(exc)
+    return (
+        "valid positive depths" in message
+        or "depth-constrained center candidates" in message
+    )
 
 
 def sample_to_tensors(sample: dict, device: str) -> dict:
@@ -492,18 +514,38 @@ def evaluate_full_frames(
             pred_full = np.full(frame_data["scan"].shape[0], -1, dtype=np.int64)
             loss_weighted = 0.0
             loss_weight = 0
+            fallback_chunks = 0
             for chunk_index, indices in enumerate(make_chunks(frame_data["scan"].shape[0], args.eval_chunk_points)):
                 sample = make_sample(frame_data, indices, need_image=need_image)
                 tensors = sample_to_tensors(sample, args.device)
-                logits, _ = run_forward(
-                    model,
-                    ipfp,
-                    point_cls,
-                    tensors,
-                    args,
-                    args.seed + step * 100000 + frame_index * 1000 + chunk_index,
-                    route=route,
-                )
+                chunk_route = route
+                if need_image and (fused_visible_point_count(sample) or 0) < 1:
+                    chunk_route = "lidar-only"
+                    fallback_chunks += 1
+                try:
+                    logits, _ = run_forward(
+                        model,
+                        ipfp,
+                        point_cls,
+                        tensors,
+                        args,
+                        args.seed + step * 100000 + frame_index * 1000 + chunk_index,
+                        route=chunk_route,
+                    )
+                except ValueError as exc:
+                    if need_image and is_fused_sampling_error(exc):
+                        fallback_chunks += 1
+                        logits, _ = run_forward(
+                            model,
+                            ipfp,
+                            point_cls,
+                            tensors,
+                            args,
+                            args.seed + step * 100000 + frame_index * 1000 + chunk_index,
+                            route="lidar-only",
+                        )
+                    else:
+                        raise
                 loss, _ = compute_loss(logits, tensors["segment"], args)
                 pred = logits.argmax(dim=1).detach().cpu().numpy().astype(np.int64)
                 target = tensors["segment"].detach().cpu().numpy()
@@ -526,6 +568,7 @@ def evaluate_full_frames(
                     "valid_points": frame_metrics["valid_points"],
                     "overall_accuracy": frame_metrics["overall_accuracy"],
                     "mean_iou": frame_metrics["mean_iou"],
+                    "fallback_chunks": fallback_chunks,
                 }
             )
             if frame_index in viz_pick:
@@ -566,6 +609,7 @@ def evaluate_full_frames(
         "elapsed_sec": round(time.time() - start_time, 3),
         "by_frame": rows,
         "metrics": metrics,
+        "fallback_chunks": int(sum(row.get("fallback_chunks", 0) for row in rows)),
         "outputs": [str((viz_dir / "val_selected_frames_montage.png").relative_to(output_dir))] if montage else [],
     }
     result_path = output_dir / f"val_metrics_step_{step:07d}_{route}.json"
@@ -654,6 +698,9 @@ def write_notes(output_dir: Path, summary: dict, val_result: dict | None) -> Non
         f"- Rare-class frame sampling probability: {summary['rare_class_sampling_prob']}",
         f"- Balanced point sampling probability: {summary['balanced_point_sampling_prob']}",
         f"- Spatial crop radius: {summary['spatial_crop_radius']}",
+        f"- Fused min visible points: {summary['fused_min_visible_points']}",
+        f"- Train sample retries: {summary['train_sample_retries']}",
+        f"- Fused train fallback: {summary['fused_train_fallback']}",
         f"- Periodic val frames: {summary['periodic_val_frame_count']}",
         f"- Steps completed: {summary['steps_completed']}",
         f"- Best val mIoU: {fmt_metric(summary['best_val_miou'])}",
@@ -797,18 +844,53 @@ def main() -> None:
     for step in range(start_step + 1, args.steps + 1):
         current_lr = lr_for_step(args, step)
         set_optimizer_lr(optimizer, current_lr)
-        sequence, frame, target_class = choose_train_frame(train_frames, training_stats, args, rng)
         need_image = args.mode == "fused"
-        frame_data = load_frame(args, sequence, frame, need_image=need_image)
-        indices = choose_train_indices(args, frame_data, rng, target_class=target_class)
-        sample = make_sample(frame_data, indices, need_image=need_image)
-        tensors = sample_to_tensors(sample, args.device)
+        max_attempts = max(1, args.train_sample_retries if need_image else 1)
+        skipped_samples = 0
+        selected_visible_points = None
+        fallback_route = None
+        last_sample_error = None
+        for attempt in range(1, max_attempts + 1):
+            sequence, frame, target_class = choose_train_frame(train_frames, training_stats, args, rng)
+            frame_data = load_frame(args, sequence, frame, need_image=need_image)
+            indices = choose_train_indices(args, frame_data, rng, target_class=target_class)
+            sample = make_sample(frame_data, indices, need_image=need_image)
+            selected_visible_points = fused_visible_point_count(sample)
+            if need_image and (selected_visible_points or 0) < min(args.fused_min_visible_points, args.train_sample_points):
+                skipped_samples += 1
+                last_sample_error = f"visible_points={selected_visible_points}"
+                continue
+            tensors = sample_to_tensors(sample, args.device)
 
-        model.train()
-        if ipfp is not None:
-            ipfp.train()
-        optimizer.zero_grad(set_to_none=True)
-        logits, _ = run_forward(model, ipfp, Point, tensors, args, args.seed + step)
+            model.train()
+            if ipfp is not None:
+                ipfp.train()
+            optimizer.zero_grad(set_to_none=True)
+            try:
+                logits, _ = run_forward(model, ipfp, Point, tensors, args, args.seed + step)
+            except ValueError as exc:
+                if need_image and is_fused_sampling_error(exc):
+                    skipped_samples += 1
+                    last_sample_error = str(exc)
+                    continue
+                raise
+            break
+        else:
+            if not need_image or args.fused_train_fallback == "error":
+                raise RuntimeError(f"failed to sample a fused train batch after {max_attempts} attempts: {last_sample_error}")
+            fallback_route = "lidar-only"
+            sequence, frame, target_class = choose_train_frame(train_frames, training_stats, args, rng)
+            frame_data = load_frame(args, sequence, frame, need_image=False)
+            indices = choose_train_indices(args, frame_data, rng, target_class=target_class)
+            sample = make_sample(frame_data, indices, need_image=False)
+            tensors = sample_to_tensors(sample, args.device)
+            selected_visible_points = None
+            model.train()
+            if ipfp is not None:
+                ipfp.train()
+            optimizer.zero_grad(set_to_none=True)
+            logits, _ = run_forward(model, ipfp, Point, tensors, args, args.seed + step, route="lidar-only")
+
         loss, loss_parts = compute_loss(logits, tensors["segment"], args)
         loss.backward()
         grad_norm = torch.nn.utils.clip_grad_norm_(trainable_parameters, max_norm=5.0)
@@ -829,6 +911,10 @@ def main() -> None:
             "lr": current_lr,
             "target_class": target_class,
             "target_class_name": CLASS_NAMES[target_class] if target_class is not None else None,
+            "forward_route": fallback_route or args.mode,
+            "sample_attempts": skipped_samples + 1,
+            "skipped_samples": skipped_samples,
+            "selected_visible_points": selected_visible_points,
         }
         with train_log_path.open("a") as handle:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -883,6 +969,9 @@ def main() -> None:
         "rare_class_sampling_prob": args.rare_class_sampling_prob,
         "balanced_point_sampling_prob": args.balanced_point_sampling_prob,
         "spatial_crop_radius": args.spatial_crop_radius,
+        "fused_min_visible_points": args.fused_min_visible_points,
+        "train_sample_retries": args.train_sample_retries,
+        "fused_train_fallback": args.fused_train_fallback,
         "init_state": init_state,
         "steps_completed": args.steps,
         "best_val_miou": best_val_miou,

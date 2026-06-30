@@ -51,6 +51,8 @@ Default stage-2 settings:
 | Rare-class frame sampling | probability `0.45` |
 | Balanced point sampling | probability `0.50` |
 | Spatial crop radius | `25.0` meters |
+| Fused visible-point guard | at least `512` camera-visible positive-depth points |
+| Fused sample retries | `12`, then LiDAR-only fallback for that step |
 | Fused gate | IPFP `extra-feature-scale=0.1` |
 
 ## Active Remote Run
@@ -66,8 +68,26 @@ Expected outputs:
 
 - `/root/autodl-tmp/ipfp_repro/results/semantic_kitti_full_benchmark/stage2_lidar_stronger_20260630_115149`
 - `/root/autodl-tmp/ipfp_repro/results/semantic_kitti_full_benchmark/stage2_fused_gate01_20260630_115149`
+- `/root/autodl-tmp/ipfp_repro/results/semantic_kitti_full_benchmark/stage2_fused_gate01_recovery_20260630_160828`
+- `/root/autodl-tmp/ipfp_repro/results/semantic_kitti_full_benchmark/stage2_fused_gate01_recovery2_20260630_162428`
 
-The fused directory appears after the LiDAR-only stage completes successfully.
+The first fused directory exited early because an IPFP batch had no
+camera-visible positive-depth points. The first recovery run exposed a second
+IPFP sampling edge case where positive depth existed but no depth-constrained
+center candidate could be sampled. The `recovery2` directory uses both fused
+sampling guards and restarts from the completed LiDAR `best.pth`.
+
+## LiDAR-Only Stage-2 Result
+
+The stronger LiDAR-only run completed successfully:
+
+| Split | Frames | mIoU | Overall accuracy | Mean loss |
+| --- | ---: | ---: | ---: | ---: |
+| Periodic validation at 55000 steps | 256 | `27.61%` | `78.58%` | `1.4824` |
+| Full sequence `08` validation at 60000 steps | 4071 | `27.79%` | `75.59%` | `1.5952` |
+
+This improves over the stage-1 full sequence `08` LiDAR-only result of
+`19.01%` mIoU.
 
 ## Interpretation
 
