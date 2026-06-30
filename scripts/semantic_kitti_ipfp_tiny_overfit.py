@@ -283,7 +283,10 @@ def lovasz_softmax_flat(probas: torch.Tensor, labels: torch.Tensor) -> torch.Ten
 
 
 def compute_loss(logits: torch.Tensor, target: torch.Tensor, args: argparse.Namespace) -> tuple[torch.Tensor, dict]:
-    ce_loss = F.cross_entropy(logits, target, ignore_index=-1)
+    class_weights = getattr(args, "class_weights_tensor", None)
+    if class_weights is not None and class_weights.device != logits.device:
+        class_weights = class_weights.to(logits.device)
+    ce_loss = F.cross_entropy(logits, target, ignore_index=-1, weight=class_weights)
     lovasz_loss = logits.new_tensor(0.0)
     if args.loss_mode == "ce-lovasz":
         lovasz_loss = lovasz_softmax_flat(F.softmax(logits, dim=1), target)

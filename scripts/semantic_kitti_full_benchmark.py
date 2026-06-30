@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 import time
 from pathlib import Path
@@ -51,6 +52,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--val-frame-limit", type=int, default=None)
     parser.add_argument("--train-sample-points", type=int, default=8192)
     parser.add_argument("--eval-chunk-points", type=int, default=16384)
+    parser.add_argument("--periodic-val-frame-stride", type=int, default=1)
+    parser.add_argument("--periodic-val-frame-limit", type=int, default=None)
     parser.add_argument("--num-centers", type=int, default=32)
     parser.add_argument("--image-width", type=int, default=480)
     parser.add_argument("--grid-size", type=float, default=0.2)
@@ -58,11 +61,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--eval-every", type=int, default=0)
     parser.add_argument("--checkpoint-every", type=int, default=1000)
     parser.add_argument("--lr", type=float, default=5e-4)
+    parser.add_argument("--lr-schedule", choices=["constant", "cosine", "poly"], default="constant")
+    parser.add_argument("--warmup-steps", type=int, default=0)
+    parser.add_argument("--min-lr", type=float, default=0.0)
+    parser.add_argument("--poly-power", type=float, default=0.9)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--seed", type=int, default=17)
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--output-dir", default=None)
     parser.add_argument("--resume", default=None)
+    parser.add_argument("--init-model-from", default=None)
     parser.add_argument("--viz-frame-count", type=int, default=8)
     parser.add_argument("--mode", choices=["fused", "lidar-only"], default="lidar-only")
     parser.add_argument("--eval-route", choices=["same", "lidar-only", "both"], default="same")
@@ -75,6 +83,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ipfp-lower-percentile", type=float, default=20.0)
     parser.add_argument("--ipfp-upper-percentile", type=float, default=99.0)
     parser.add_argument("--ipfp-discard-probability", type=float, default=0.2)
+    parser.add_argument("--class-weight-mode", choices=["none", "inverse_freq", "inverse_sqrt_freq"], default="none")
+    parser.add_argument("--class-weight-clip", type=float, default=5.0)
+    parser.add_argument("--rare-class-sampling-prob", type=float, default=0.0)
+    parser.add_argument("--balanced-point-sampling-prob", type=float, default=0.0)
+    parser.add_argument("--spatial-crop-radius", type=float, default=0.0)
     return parser.parse_args()
 
 
@@ -100,6 +113,117 @@ def list_frames(root: Path, sequences: list[str], stride: int, limit: int | None
                 frames.append((sequence, path.stem))
         all_frames.extend(frames)
     return apply_stride_limit(all_frames, stride, limit)
+
+
+def read_label_ids(root: Path, sequence: str, frame: str) -> np.ndarray:
+    label_path = root / "data/semantic_kitti/dataset/sequences" / sequence / "labels" / f"{frame}.label"
+    labels_raw = np.fromfile(label_path, dtype=np.uint32).reshape(-1) & 0xFFFF
+    return remap_labels(labels_raw)
+
+
+def build_training_statistics(root: Path, train_frames: list[tuple[str, str]], output_dir: Path) -> dict:
+    class_counts = np.zeros(NUM_CLASSES, dtype=np.int64)
+    frame_class_counts = np.zeros((len(train_frames), NUM_CLASSES), dtype=np.int64)
+    start_time = time.time()
+    for frame_index, (sequence, frame) in enumerate(train_frames):
+        labels = read_label_ids(root, sequence, frame)
+        valid = labels >= 0
+        if valid.any():
+            counts = np.bincount(labels[valid], minlength=NUM_CLASSES)[:NUM_CLASSES]
+            frame_class_counts[frame_index] = counts
+            class_counts += counts
+        if frame_index == 0 or (frame_index + 1) % max(1, len(train_frames) // 10) == 0 or frame_index + 1 == len(train_frames):
+            print(
+                json.dumps(
+                    {
+                        "event": "class_stats_progress",
+                        "frames_done": frame_index + 1,
+                        "frames_total": len(train_frames),
+                    },
+                    ensure_ascii=False,
+                ),
+                flush=True,
+            )
+
+    present = class_counts > 0
+    inverse_sqrt = np.zeros(NUM_CLASSES, dtype=np.float64)
+    inverse = np.zeros(NUM_CLASSES, dtype=np.float64)
+    if present.any():
+        freq = class_counts[present].astype(np.float64)
+        inverse_sqrt[present] = 1.0 / np.sqrt(freq)
+        inverse[present] = 1.0 / freq
+        inverse_sqrt[present] /= inverse_sqrt[present].mean()
+        inverse[present] /= inverse[present].mean()
+
+    class_frame_indices = [np.flatnonzero(frame_class_counts[:, class_idx] > 0).astype(np.int64) for class_idx in range(NUM_CLASSES)]
+    rare_sampling_weights = inverse_sqrt.copy()
+    if rare_sampling_weights.sum() > 0:
+        rare_sampling_weights /= rare_sampling_weights.sum()
+
+    payload = {
+        "train_frames": len(train_frames),
+        "elapsed_sec": round(time.time() - start_time, 3),
+        "class_counts": class_counts.tolist(),
+        "class_frame_counts": (frame_class_counts > 0).sum(axis=0).astype(int).tolist(),
+        "class_metrics": [
+            {
+                "class_id": class_idx,
+                "class_name": CLASS_NAMES[class_idx],
+                "point_count": int(class_counts[class_idx]),
+                "frame_count": int((frame_class_counts[:, class_idx] > 0).sum()),
+                "inverse_freq_weight": float(inverse[class_idx]),
+                "inverse_sqrt_freq_weight": float(inverse_sqrt[class_idx]),
+            }
+            for class_idx in range(NUM_CLASSES)
+        ],
+    }
+    (output_dir / "class_stats.json").write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+    return {
+        "class_counts": class_counts,
+        "frame_class_counts": frame_class_counts,
+        "class_frame_indices": class_frame_indices,
+        "inverse_freq_weights": inverse,
+        "inverse_sqrt_freq_weights": inverse_sqrt,
+        "rare_sampling_weights": rare_sampling_weights,
+        "payload": payload,
+    }
+
+
+def make_class_weights(args: argparse.Namespace, training_stats: dict | None) -> torch.Tensor | None:
+    if args.class_weight_mode == "none" or training_stats is None:
+        return None
+    if args.class_weight_mode == "inverse_freq":
+        weights = training_stats["inverse_freq_weights"].copy()
+    else:
+        weights = training_stats["inverse_sqrt_freq_weights"].copy()
+    present = weights > 0
+    if args.class_weight_clip > 0:
+        weights[present] = np.clip(weights[present], 1.0 / args.class_weight_clip, args.class_weight_clip)
+    if present.any():
+        weights[present] /= weights[present].mean()
+    return torch.tensor(weights, dtype=torch.float32, device=args.device)
+
+
+def choose_train_frame(
+    train_frames: list[tuple[str, str]],
+    training_stats: dict | None,
+    args: argparse.Namespace,
+    rng: np.random.Generator,
+) -> tuple[str, str, int | None]:
+    if training_stats is None or args.rare_class_sampling_prob <= 0 or rng.random() >= args.rare_class_sampling_prob:
+        return (*train_frames[int(rng.integers(0, len(train_frames)))], None)
+
+    weights = training_stats["rare_sampling_weights"]
+    if weights.sum() <= 0:
+        return (*train_frames[int(rng.integers(0, len(train_frames)))], None)
+
+    for _ in range(16):
+        target_class = int(rng.choice(np.arange(NUM_CLASSES), p=weights))
+        candidates = training_stats["class_frame_indices"][target_class]
+        if candidates.size > 0:
+            frame_index = int(candidates[int(rng.integers(0, candidates.size))])
+            return (*train_frames[frame_index], target_class)
+    return (*train_frames[int(rng.integers(0, len(train_frames)))], None)
 
 
 def load_frame(args: argparse.Namespace, sequence: str, frame: str, need_image: bool) -> dict:
@@ -172,15 +296,58 @@ def load_frame(args: argparse.Namespace, sequence: str, frame: str, need_image: 
     return loaded
 
 
-def choose_train_indices(args: argparse.Namespace, frame_data: dict, rng: np.random.Generator) -> np.ndarray:
+def choose_class_balanced_indices(labels: np.ndarray, pool: np.ndarray, n: int, rng: np.random.Generator) -> np.ndarray:
+    pool_labels = labels[pool]
+    present_classes = [class_idx for class_idx in np.unique(pool_labels) if class_idx >= 0]
+    if not present_classes:
+        return rng.choice(pool, size=n, replace=pool.size < n)
+    per_class = max(1, n // len(present_classes))
+    chosen_parts = []
+    for class_idx in present_classes:
+        class_pool = pool[pool_labels == class_idx]
+        take = min(per_class, n - sum(part.size for part in chosen_parts))
+        if take <= 0:
+            break
+        chosen_parts.append(rng.choice(class_pool, size=take, replace=class_pool.size < take))
+    selected = np.concatenate(chosen_parts) if chosen_parts else np.empty(0, dtype=np.int64)
+    remaining = n - selected.size
+    if remaining > 0:
+        selected = np.concatenate([selected, rng.choice(pool, size=remaining, replace=pool.size < remaining)])
+    rng.shuffle(selected)
+    return selected
+
+
+def choose_train_indices(
+    args: argparse.Namespace,
+    frame_data: dict,
+    rng: np.random.Generator,
+    target_class: int | None = None,
+) -> np.ndarray:
     labels = frame_data["labels"]
     valid_label_idx = np.flatnonzero(labels >= 0)
     if valid_label_idx.size == 0:
         raise RuntimeError(f"no valid labels in {frame_data['name']}")
     n = min(args.train_sample_points, valid_label_idx.size)
 
+    candidate_pool = valid_label_idx
+    if args.spatial_crop_radius > 0:
+        if target_class is not None:
+            center_pool = np.flatnonzero(labels == target_class)
+        else:
+            center_pool = valid_label_idx
+        if center_pool.size > 0:
+            center_idx = int(center_pool[int(rng.integers(0, center_pool.size))])
+            xy = frame_data["scan"][:, :2]
+            center_xy = xy[center_idx]
+            distance = np.linalg.norm(xy[valid_label_idx] - center_xy, axis=1)
+            crop_pool = valid_label_idx[distance <= args.spatial_crop_radius]
+            if crop_pool.size >= min(n, 1024):
+                candidate_pool = crop_pool
+
     if args.mode == "fused" and "valid_all" in frame_data:
-        visible_valid = np.flatnonzero((labels >= 0) & frame_data["valid_all"])
+        candidate_mask = np.zeros(labels.shape[0], dtype=bool)
+        candidate_mask[candidate_pool] = True
+        visible_valid = np.flatnonzero((labels >= 0) & frame_data["valid_all"] & candidate_mask)
         take_visible = min(visible_valid.size, max(n // 2, min(n, 512)))
         chosen_parts = []
         if take_visible > 0:
@@ -188,14 +355,16 @@ def choose_train_indices(args: argparse.Namespace, frame_data: dict, rng: np.ran
             chosen_parts.append(chosen_visible)
         remaining = n - take_visible
         if remaining > 0:
-            pool = np.setdiff1d(valid_label_idx, chosen_parts[0], assume_unique=False) if chosen_parts else valid_label_idx
+            pool = np.setdiff1d(candidate_pool, chosen_parts[0], assume_unique=False) if chosen_parts else candidate_pool
             if pool.size == 0:
-                pool = valid_label_idx
+                pool = candidate_pool
             chosen_other = rng.choice(pool, size=remaining, replace=pool.size < remaining)
             chosen_parts.append(chosen_other)
         chosen = np.concatenate(chosen_parts)
+    elif args.balanced_point_sampling_prob > 0 and rng.random() < args.balanced_point_sampling_prob:
+        chosen = choose_class_balanced_indices(labels, candidate_pool, n, rng)
     else:
-        chosen = rng.choice(valid_label_idx, size=n, replace=valid_label_idx.size < n)
+        chosen = rng.choice(candidate_pool, size=n, replace=candidate_pool.size < n)
     rng.shuffle(chosen)
     return chosen.astype(np.int64)
 
@@ -428,6 +597,41 @@ def load_checkpoint(path: Path, model, ipfp, optimizer) -> tuple[int, float | No
     return int(state.get("step", 0)), state.get("best_val_miou")
 
 
+def load_model_weights(path: Path, model, ipfp) -> dict:
+    state = torch.load(path, map_location="cpu")
+    model.load_state_dict(state["model"])
+    loaded_ipfp = False
+    if ipfp is not None and state.get("ipfp") is not None:
+        ipfp.load_state_dict(state["ipfp"])
+        loaded_ipfp = True
+    return {
+        "path": str(path),
+        "source_step": int(state.get("step", 0)),
+        "source_best_val_miou": state.get("best_val_miou"),
+        "loaded_ipfp": loaded_ipfp,
+    }
+
+
+def lr_for_step(args: argparse.Namespace, step: int) -> float:
+    warmup_steps = max(0, args.warmup_steps)
+    if warmup_steps > 0 and step <= warmup_steps:
+        return args.lr * step / warmup_steps
+    if args.lr_schedule == "constant":
+        return args.lr
+    denom = max(1, args.steps - warmup_steps)
+    progress = min(max((step - warmup_steps) / denom, 0.0), 1.0)
+    if args.lr_schedule == "cosine":
+        return args.min_lr + 0.5 * (args.lr - args.min_lr) * (1.0 + math.cos(math.pi * progress))
+    if args.lr_schedule == "poly":
+        return args.min_lr + (args.lr - args.min_lr) * ((1.0 - progress) ** args.poly_power)
+    return args.lr
+
+
+def set_optimizer_lr(optimizer, lr: float) -> None:
+    for group in optimizer.param_groups:
+        group["lr"] = lr
+
+
 def write_notes(output_dir: Path, summary: dict, val_result: dict | None) -> None:
     notes = [
         "# SemanticKITTI Full-Frame Benchmark Notes",
@@ -445,6 +649,12 @@ def write_notes(output_dir: Path, summary: dict, val_result: dict | None) -> Non
         f"- Val frames: {summary['val_frame_count']}",
         f"- Train sample points per step: {summary['train_sample_points']}",
         f"- Eval chunk points: {summary['eval_chunk_points']}",
+        f"- LR schedule: {summary['lr_schedule']}",
+        f"- Class weight mode: {summary['class_weight_mode']}",
+        f"- Rare-class frame sampling probability: {summary['rare_class_sampling_prob']}",
+        f"- Balanced point sampling probability: {summary['balanced_point_sampling_prob']}",
+        f"- Spatial crop radius: {summary['spatial_crop_radius']}",
+        f"- Periodic val frames: {summary['periodic_val_frame_count']}",
         f"- Steps completed: {summary['steps_completed']}",
         f"- Best val mIoU: {fmt_metric(summary['best_val_miou'])}",
         "",
@@ -502,6 +712,9 @@ def main() -> None:
 
     train_frames = list_frames(root, args.train_sequences, args.train_frame_stride, args.train_frame_limit)
     val_frames = list_frames(root, args.val_sequences, args.val_frame_stride, args.val_frame_limit)
+    periodic_val_frames = apply_stride_limit(val_frames, args.periodic_val_frame_stride, args.periodic_val_frame_limit)
+    if not periodic_val_frames:
+        periodic_val_frames = val_frames
     if args.steps > 0 and not train_frames:
         raise RuntimeError("No training frames found")
     if not val_frames:
@@ -535,8 +748,24 @@ def main() -> None:
 
     start_step = 0
     best_val_miou = None
+    init_state = None
+    if args.init_model_from and not args.resume:
+        init_state = load_model_weights(Path(args.init_model_from), model, ipfp)
     if args.resume:
         start_step, best_val_miou = load_checkpoint(Path(args.resume), model, ipfp, optimizer)
+
+    needs_training_stats = (
+        args.class_weight_mode != "none"
+        or args.rare_class_sampling_prob > 0
+        or args.balanced_point_sampling_prob > 0
+    )
+    training_stats = build_training_statistics(root, train_frames, output_dir) if needs_training_stats else None
+    args.class_weights_tensor = make_class_weights(args, training_stats)
+    class_weights_list = (
+        [float(x) for x in args.class_weights_tensor.detach().cpu().tolist()]
+        if args.class_weights_tensor is not None
+        else None
+    )
 
     train_log_path = output_dir / "train_log.jsonl"
     rng = np.random.default_rng(args.seed + start_step)
@@ -553,20 +782,25 @@ def main() -> None:
         "val_sequences": args.val_sequences,
         "train_frame_count": len(train_frames),
         "val_frame_count": len(val_frames),
+        "periodic_val_frame_count": len(periodic_val_frames),
         "train_sample_points": args.train_sample_points,
         "eval_chunk_points": args.eval_chunk_points,
         "steps": args.steps,
         "start_step": start_step,
-        "args": vars(args),
+        "init_state": init_state,
+        "class_weights": class_weights_list,
+        "args": {k: v for k, v in vars(args).items() if k != "class_weights_tensor"},
     }
     (output_dir / "run_manifest.json").write_text(json.dumps(run_manifest, indent=2, ensure_ascii=False) + "\n")
     print(json.dumps(run_manifest, ensure_ascii=False), flush=True)
 
     for step in range(start_step + 1, args.steps + 1):
-        sequence, frame = train_frames[int(rng.integers(0, len(train_frames)))]
+        current_lr = lr_for_step(args, step)
+        set_optimizer_lr(optimizer, current_lr)
+        sequence, frame, target_class = choose_train_frame(train_frames, training_stats, args, rng)
         need_image = args.mode == "fused"
         frame_data = load_frame(args, sequence, frame, need_image=need_image)
-        indices = choose_train_indices(args, frame_data, rng)
+        indices = choose_train_indices(args, frame_data, rng, target_class=target_class)
         sample = make_sample(frame_data, indices, need_image=need_image)
         tensors = sample_to_tensors(sample, args.device)
 
@@ -592,7 +826,9 @@ def main() -> None:
             "valid_acc": float(acc.detach().cpu().item()),
             "valid_points": int(valid.detach().cpu().sum().item()),
             "grad_norm": float(grad_norm.detach().cpu().item() if torch.is_tensor(grad_norm) else grad_norm),
-            "lr": args.lr,
+            "lr": current_lr,
+            "target_class": target_class,
+            "target_class_name": CLASS_NAMES[target_class] if target_class is not None else None,
         }
         with train_log_path.open("a") as handle:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -601,7 +837,7 @@ def main() -> None:
 
         should_eval = args.eval_every > 0 and step % args.eval_every == 0
         if should_eval:
-            last_val_result = evaluate_full_frames(model, ipfp, Point, val_frames, args, eval_route, output_dir, step)
+            last_val_result = evaluate_full_frames(model, ipfp, Point, periodic_val_frames, args, eval_route, output_dir, step)
             current = last_val_result["mean_iou"]
             if current is not None and (best_val_miou is None or current > best_val_miou):
                 best_val_miou = current
@@ -609,7 +845,13 @@ def main() -> None:
         if args.checkpoint_every > 0 and step % args.checkpoint_every == 0:
             save_checkpoint(output_dir / "checkpoints/latest.pth", model, ipfp, optimizer, step, best_val_miou, args)
 
-    if args.steps == 0 or args.eval_every == 0 or last_val_result is None:
+    needs_final_full_eval = (
+        args.steps == 0
+        or args.eval_every == 0
+        or last_val_result is None
+        or periodic_val_frames != val_frames
+    )
+    if needs_final_full_eval:
         last_val_result = evaluate_full_frames(model, ipfp, Point, val_frames, args, eval_route, output_dir, args.steps)
         current = last_val_result["mean_iou"]
         if current is not None and (best_val_miou is None or current > best_val_miou):
@@ -629,8 +871,19 @@ def main() -> None:
         "val_sequences": args.val_sequences,
         "train_frame_count": len(train_frames),
         "val_frame_count": len(val_frames),
+        "periodic_val_frame_count": len(periodic_val_frames),
         "train_sample_points": args.train_sample_points,
         "eval_chunk_points": args.eval_chunk_points,
+        "lr": args.lr,
+        "lr_schedule": args.lr_schedule,
+        "warmup_steps": args.warmup_steps,
+        "min_lr": args.min_lr,
+        "class_weight_mode": args.class_weight_mode,
+        "class_weights": class_weights_list,
+        "rare_class_sampling_prob": args.rare_class_sampling_prob,
+        "balanced_point_sampling_prob": args.balanced_point_sampling_prob,
+        "spatial_crop_radius": args.spatial_crop_radius,
+        "init_state": init_state,
         "steps_completed": args.steps,
         "best_val_miou": best_val_miou,
         "final_val": last_val_result,
