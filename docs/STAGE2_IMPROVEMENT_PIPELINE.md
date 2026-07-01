@@ -100,6 +100,7 @@ inference time.
 | --- | --- | ---: | ---: | ---: | ---: |
 | Stage-2 stronger LiDAR-only | LiDAR-only | 4071 | `27.79%` | `75.59%` | `1.5952` |
 | Stage-2 fused training | LiDAR-only | 4071 | `29.04%` | `80.12%` | `1.5005` |
+| Stage-2 zero-feature fused path | LiDAR-only | 4071 | `28.93%` | `79.70%` | `1.5103` |
 | Stage-2 fused diagnostic | Fused | 4071 | `29.21%` | `80.15%` | `1.4922` |
 
 The fused-training route improves the primary LiDAR-only inference result by
@@ -107,8 +108,15 @@ The fused-training route improves the primary LiDAR-only inference result by
 LiDAR-only baseline. The diagnostic fused-inference route recorded `4066`
 fallback counts, so it is not yet a clean fused-inference result.
 
+The first controlled ablation replaced learned IPFP feature content with zeros
+and still reached `28.93%` mIoU on the same full sequence `08` validation. This
+recovers nearly all of the fused-training gain and weakens any claim that the
+current improvement is specifically caused by learned image semantics.
+
 Full details, class-wise IoU, and visualizations are in
 [`docs/STAGE2_FULL_BENCHMARK_RESULTS.md`](STAGE2_FULL_BENCHMARK_RESULTS.md).
+The ablation breakdown is tracked in
+[`docs/STAGE2_ABLATION_RESULTS.md`](STAGE2_ABLATION_RESULTS.md).
 
 ## Interpretation
 

@@ -15,6 +15,9 @@ This repository contains:
 - `docs/PAPER_ALIGNED_EXPERIMENTS.md`: paper-style evaluation/depth/loss diagnostic.
 - `docs/STAGE2_FULL_BENCHMARK_RESULTS.md`: completed SemanticKITTI sequence `08`
   stage-2 benchmark with class-wise IoU and visualizations.
+- `docs/STAGE2_ABLATION_RESULTS.md`: stage-2 zero-feature ablation and the
+  queued controls that diagnose whether fused gains come from image features,
+  added-point distribution, or continued optimization.
 
 ## What Is Implemented
 
@@ -108,12 +111,16 @@ benchmark-scale signal:
 | --- | --- | ---: | ---: | ---: | ---: |
 | Stage-2 LiDAR-only | LiDAR-only | 4071 | 27.79% | 75.59% | 1.5952 |
 | Stage-2 fused training | LiDAR-only | 4071 | 29.04% | 80.12% | 1.5005 |
+| Stage-2 zero-feature fused path | LiDAR-only | 4071 | 28.93% | 79.70% | 1.5103 |
 
 This supports the training-time IPFP/fusion route: multimodal training improves
 LiDAR-only inference by `+1.25` mIoU points over the stronger LiDAR-only
 baseline. The fused diagnostic route still falls back heavily, so fused
-inference itself remains a separate diagnosis target. See
-`docs/STAGE2_FULL_BENCHMARK_RESULTS.md`.
+inference itself remains a separate diagnosis target. The zero-feature ablation
+recovers nearly all of the fused-training gain without learned image-feature
+content, so the current evidence does not yet isolate image semantics as the
+source of the improvement. See `docs/STAGE2_FULL_BENCHMARK_RESULTS.md` and
+`docs/STAGE2_ABLATION_RESULTS.md`.
 
 Example 50-frame visualization:
 

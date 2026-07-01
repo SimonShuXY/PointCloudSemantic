@@ -1,0 +1,200 @@
+{
+  "train_frames": 19130,
+  "elapsed_sec": 682.949,
+  "class_counts": [
+    99431486,
+    391766,
+    936031,
+    4586090,
+    5455888,
+    816813,
+    298604,
+    87779,
+    467085589,
+    34577789,
+    338183720,
+    9173976,
+    311802516,
+    170001681,
+    627195745,
+    14189414,
+    183603141,
+    6712285,
+    1441988
+  ],
+  "class_frame_counts": [
+    17784,
+    3471,
+    2872,
+    2264,
+    5063,
+    4721,
+    1176,
+    552,
+    19130,
+    7705,
+    18052,
+    5257,
+    17116,
+    18751,
+    19130,
+    17124,
+    18534,
+    18617,
+    13224
+  ],
+  "class_metrics": [
+    {
+      "class_id": 0,
+      "class_name": "car",
+      "point_count": 99431486,
+      "frame_count": 17784,
+      "inverse_freq_weight": 0.009069201526779756,
+      "inverse_sqrt_freq_weight": 0.1552851227544753
+    },
+    {
+      "class_id": 1,
+      "class_name": "bicycle",
+      "point_count": 391766,
+      "frame_count": 3471,
+      "inverse_freq_weight": 2.3017928677863315,
+      "inverse_sqrt_freq_weight": 2.4738789400836394
+    },
+    {
+      "class_id": 2,
+      "class_name": "motorcycle",
+      "point_count": 936031,
+      "frame_count": 2872,
+      "inverse_freq_weight": 0.9633913669965846,
+      "inverse_sqrt_freq_weight": 1.6004669069177286
+    },
+    {
+      "class_id": 3,
+      "class_name": "truck",
+      "point_count": 4586090,
+      "frame_count": 2264,
+      "inverse_freq_weight": 0.1966302851974514,
+      "inverse_sqrt_freq_weight": 0.7230536587352796
+    },
+    {
+      "class_id": 4,
+      "class_name": "other-vehicle",
+      "point_count": 5455888,
+      "frame_count": 5063,
+      "inverse_freq_weight": 0.16528275225612768,
+      "inverse_sqrt_freq_weight": 0.6629169010503565
+    },
+    {
+      "class_id": 5,
+      "class_name": "person",
+      "point_count": 816813,
+      "frame_count": 4721,
+      "inverse_freq_weight": 1.1040032230647407,
+      "inverse_sqrt_freq_weight": 1.7132884775644113
+    },
+    {
+      "class_id": 6,
+      "class_name": "bicyclist",
+      "point_count": 298604,
+      "frame_count": 1176,
+      "inverse_freq_weight": 3.019933372095417,
+      "inverse_sqrt_freq_weight": 2.833635626552385
+    },
+    {
+      "class_id": 7,
+      "class_name": "motorcyclist",
+      "point_count": 87779,
+      "frame_count": 552,
+      "inverse_freq_weight": 10.273119819560259,
+      "inverse_sqrt_freq_weight": 5.2263260506688285
+    },
+    {
+      "class_id": 8,
+      "class_name": "road",
+      "point_count": 467085589,
+      "frame_count": 19130,
+      "inverse_freq_weight": 0.0019306187257281877,
+      "inverse_sqrt_freq_weight": 0.07164626921188212
+    },
+    {
+      "class_id": 9,
+      "class_name": "parking",
+      "point_count": 34577789,
+      "frame_count": 7705,
+      "inverse_freq_weight": 0.026079289934968948,
+      "inverse_sqrt_freq_weight": 0.2633256741924184
+    },
+    {
+      "class_id": 10,
+      "class_name": "sidewalk",
+      "point_count": 338183720,
+      "frame_count": 18052,
+      "inverse_freq_weight": 0.0026664920021613695,
+      "inverse_sqrt_freq_weight": 0.0842006542770446
+    },
+    {
+      "class_id": 11,
+      "class_name": "other-ground",
+      "point_count": 9173976,
+      "frame_count": 5257,
+      "inverse_freq_weight": 0.09829589532839196,
+      "inverse_sqrt_freq_weight": 0.5112260962396469
+    },
+    {
+      "class_id": 12,
+      "class_name": "building",
+      "point_count": 311802516,
+      "frame_count": 17116,
+      "inverse_freq_weight": 0.002892100410893349,
+      "inverse_sqrt_freq_weight": 0.08769039110347729
+    },
+    {
+      "class_id": 13,
+      "class_name": "fence",
+      "point_count": 170001681,
+      "frame_count": 18751,
+      "inverse_freq_weight": 0.005304442752193609,
+      "inverse_sqrt_freq_weight": 0.1187586376251451
+    },
+    {
+      "class_id": 14,
+      "class_name": "vegetation",
+      "point_count": 627195745,
+      "frame_count": 19130,
+      "inverse_freq_weight": 0.001437771527995905,
+      "inverse_sqrt_freq_weight": 0.06182872104524972
+    },
+    {
+      "class_id": 15,
+      "class_name": "trunk",
+      "point_count": 14189414,
+      "frame_count": 17124,
+      "inverse_freq_weight": 0.06355189753721895,
+      "inverse_sqrt_freq_weight": 0.4110641331161203
+    },
+    {
+      "class_id": 16,
+      "class_name": "terrain",
+      "point_count": 183603141,
+      "frame_count": 18534,
+      "inverse_freq_weight": 0.004911485608196539,
+      "inverse_sqrt_freq_weight": 0.11427513982976016
+    },
+    {
+      "class_id": 17,
+      "class_name": "pole",
+      "point_count": 6712285,
+      "frame_count": 18617,
+      "inverse_freq_weight": 0.13434533614725536,
+      "inverse_sqrt_freq_weight": 0.5976633442966972
+    },
+    {
+      "class_id": 18,
+      "class_name": "traffic-sign",
+      "point_count": 1441988,
+      "frame_count": 13224,
+      "inverse_freq_weight": 0.6253617815413027,
+      "inverse_sqrt_freq_weight": 1.2894692547354545
+    }
+  ]
+}
