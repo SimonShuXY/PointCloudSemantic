@@ -49,6 +49,8 @@ model used at inference time.
 | Stage-2 stronger LiDAR-only | LiDAR-only | 4071 | `27.79%` | `75.59%` | `1.5952` |
 | Stage-2 fused training | LiDAR-only | 4071 | `29.04%` | `80.12%` | `1.5005` |
 | Stage-2 zero-feature fused path | LiDAR-only | 4071 | `28.93%` | `79.70%` | `1.5103` |
+| Stage-2 IPFP detached branch | LiDAR-only | 4071 | `28.48%` | `79.22%` | `1.5408` |
+| Stage-2 LiDAR continued | LiDAR-only | 4071 | `26.85%` | `73.40%` | `1.7084` |
 | Stage-2 fused diagnostic | Fused | 4071 | `29.21%` | `80.15%` | `1.4922` |
 
 Relative to the stronger LiDAR-only baseline, fused training improves the
@@ -56,10 +58,12 @@ primary LiDAR-only inference route by `+1.25` mIoU points and `+4.53` overall
 accuracy points. Relative to the original stage-1 scaffold, the full stage-2
 pipeline improves mIoU by `+10.03` points.
 
-The first stage-2 ablation shows that the zero-feature fused path reaches
+The completed stage-2 ablations show that the zero-feature fused path reaches
 `28.93%` full-sequence mIoU, only `0.12` points below the learned-feature fused
-training run. This means the current fused-training gain should not yet be
-attributed to learned image-feature content. See
+training run. The LiDAR-only continued control reaches only `26.85%`, so the
+gain is not explained by extra optimization time alone. This means the current
+fused-training gain should be attributed to the fused path / added-point
+mechanism before it is attributed to learned image-feature content. See
 [`docs/STAGE2_ABLATION_RESULTS.md`](STAGE2_ABLATION_RESULTS.md).
 
 The fused diagnostic row should not be interpreted as a clean fused-inference
@@ -146,10 +150,11 @@ stage-2 recipe:
 
 1. `extra_feature_mode=zeros`: completed at `28.93%` full-sequence mIoU. This
    recovers nearly all of the learned-feature fused-training gain.
-2. `ipfp_detach`: running remotely; this tests whether gradients through IPFP
-   are helping or damaging the backbone.
-3. LiDAR-only continued fine-tune for `30000` extra steps: queued remotely; this
-   controls for extra optimization time after the 60000-step LiDAR baseline.
+2. `ipfp_detach`: completed at `28.48%` full-sequence mIoU. This is worse than
+   both learned-feature fused training and zero-feature fused training.
+3. LiDAR-only continued fine-tune for `30000` extra steps: completed at
+   `26.85%` full-sequence mIoU. This falls below the stage-2 LiDAR baseline and
+   rules out extra optimization time as the primary explanation.
 
 In parallel, diagnose fused inference fallback by logging the failure reason per
 validation frame or chunk: insufficient visible points, invalid projected depth,

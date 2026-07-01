@@ -112,15 +112,19 @@ benchmark-scale signal:
 | Stage-2 LiDAR-only | LiDAR-only | 4071 | 27.79% | 75.59% | 1.5952 |
 | Stage-2 fused training | LiDAR-only | 4071 | 29.04% | 80.12% | 1.5005 |
 | Stage-2 zero-feature fused path | LiDAR-only | 4071 | 28.93% | 79.70% | 1.5103 |
+| Stage-2 IPFP detached branch | LiDAR-only | 4071 | 28.48% | 79.22% | 1.5408 |
+| Stage-2 LiDAR continued | LiDAR-only | 4071 | 26.85% | 73.40% | 1.7084 |
 
 This supports the training-time IPFP/fusion route: multimodal training improves
 LiDAR-only inference by `+1.25` mIoU points over the stronger LiDAR-only
 baseline. The fused diagnostic route still falls back heavily, so fused
 inference itself remains a separate diagnosis target. The zero-feature ablation
 recovers nearly all of the fused-training gain without learned image-feature
-content, so the current evidence does not yet isolate image semantics as the
-source of the improvement. See `docs/STAGE2_FULL_BENCHMARK_RESULTS.md` and
-`docs/STAGE2_ABLATION_RESULTS.md`.
+content, while the LiDAR-only continued control drops below the baseline. The
+current evidence therefore points to the fused path / added-point mechanism
+rather than extra optimization time alone, and it does not yet isolate image
+semantics as the source of the improvement. See
+`docs/STAGE2_FULL_BENCHMARK_RESULTS.md` and `docs/STAGE2_ABLATION_RESULTS.md`.
 
 Example 50-frame visualization:
 

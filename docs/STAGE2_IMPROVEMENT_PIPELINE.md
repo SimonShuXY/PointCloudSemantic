@@ -101,6 +101,8 @@ inference time.
 | Stage-2 stronger LiDAR-only | LiDAR-only | 4071 | `27.79%` | `75.59%` | `1.5952` |
 | Stage-2 fused training | LiDAR-only | 4071 | `29.04%` | `80.12%` | `1.5005` |
 | Stage-2 zero-feature fused path | LiDAR-only | 4071 | `28.93%` | `79.70%` | `1.5103` |
+| Stage-2 IPFP detached branch | LiDAR-only | 4071 | `28.48%` | `79.22%` | `1.5408` |
+| Stage-2 LiDAR continued | LiDAR-only | 4071 | `26.85%` | `73.40%` | `1.7084` |
 | Stage-2 fused diagnostic | Fused | 4071 | `29.21%` | `80.15%` | `1.4922` |
 
 The fused-training route improves the primary LiDAR-only inference result by
@@ -110,8 +112,12 @@ fallback counts, so it is not yet a clean fused-inference result.
 
 The first controlled ablation replaced learned IPFP feature content with zeros
 and still reached `28.93%` mIoU on the same full sequence `08` validation. This
-recovers nearly all of the fused-training gain and weakens any claim that the
-current improvement is specifically caused by learned image semantics.
+recovers nearly all of the fused-training gain. The LiDAR-only continued
+control reached only `26.85%`, below the original stronger LiDAR baseline, so
+the current improvement is not explained by extra optimization time alone.
+Together these results point to the fused path / added back-projected points as
+the active mechanism, while weakening any claim that learned image semantics are
+the main cause.
 
 Full details, class-wise IoU, and visualizations are in
 [`docs/STAGE2_FULL_BENCHMARK_RESULTS.md`](STAGE2_FULL_BENCHMARK_RESULTS.md).

@@ -13,12 +13,18 @@ coupled in the original fused-training result:
 | Run | Directory | Status |
 | --- | --- | --- |
 | Zero feature content | `results/semantic_kitti_full_benchmark/stage2_ablate_zero_feature_20260701_1245` | complete |
-| IPFP detached branch | `results/semantic_kitti_full_benchmark/stage2_ablate_ipfp_detach_20260701_1245` | running remotely |
-| LiDAR-only continued fine-tune | `results/semantic_kitti_full_benchmark/stage2_lidar_continued_30k_20260701_1245` | queued remotely |
+| IPFP detached branch | `results/semantic_kitti_full_benchmark/stage2_ablate_ipfp_detach_20260701_1245` | complete remotely |
+| LiDAR-only continued fine-tune | `results/semantic_kitti_full_benchmark/stage2_lidar_continued_30k_20260701_1245` | complete remotely |
 
 The committed artifacts are limited to metrics JSON, manifest files, benchmark
 notes, class statistics, and selected validation visualizations. Raw datasets,
 checkpoints, and training logs are not included.
+
+As of `2026-07-01 21:06 CST`, all three remote ablations finished with
+`summary_status=OK`. The `zero-feature` metrics and visual artifacts are already
+committed. The `ipfp_detach` and `lidar_continued` metrics below were read from
+the remote summaries; their lightweight JSON/PNG artifacts still need to be
+synced once the SSH transfer channel is stable again.
 
 ## Zero-Feature Configuration
 
@@ -56,11 +62,19 @@ Full validation uses SemanticKITTI sequence `08` with `4071` frames.
 | Stage-2 stronger LiDAR-only | LiDAR-only | 4071 | `27.79%` | `75.59%` | `1.5952` | `0.00` | `-1.25` |
 | Stage-2 fused training | LiDAR-only | 4071 | `29.04%` | `80.12%` | `1.5005` | `+1.25` | `0.00` |
 | Zero-feature fused path | LiDAR-only | 4071 | `28.93%` | `79.70%` | `1.5103` | `+1.14` | `-0.12` |
+| IPFP detached branch | LiDAR-only | 4071 | `28.48%` | `79.22%` | `1.5408` | `+0.69` | `-0.56` |
+| LiDAR-only continued fine-tune | LiDAR-only | 4071 | `26.85%` | `73.40%` | `1.7084` | `-0.94` | `-2.19` |
 
 The zero-feature run recovers almost all of the fused-training mIoU gain while
 using no learned image-feature content. It is `+1.14` mIoU points above the
 stronger LiDAR baseline and only `0.12` mIoU points below the original fused
 training result.
+
+The LiDAR-only continued control falls below the original stage-2 LiDAR
+baseline, so the zero-feature gain is not explained by simply training the
+LiDAR model for another `30000` steps. The useful signal is therefore tied to
+the fused data path and/or added back-projected points rather than extra
+optimization time alone.
 
 ## Periodic Trend
 
@@ -79,6 +93,22 @@ stage-2 runs. The final row is the full sequence `08` validation.
 
 The final full-sequence score is close to the periodic 30k subset score, so the
 zero-feature improvement is not only a 256-frame subset artifact.
+
+## Ablation Trend Comparison
+
+The periodic rows use the 256-frame validation subset. The final row uses the
+full `4071`-frame sequence `08` validation.
+
+| Route | 5k | 10k | 15k | 20k | 25k | 30k full |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Stage-2 fused training | `25.83%` | `23.09%` | `26.44%` | `26.81%` | `29.04%` | `29.04%` |
+| Zero-feature fused path | `26.39%` | `24.81%` | `24.44%` | `26.13%` | `27.04%` | `28.93%` |
+| IPFP detached branch | `25.53%` | `23.84%` | `24.40%` | `28.61%` | `27.74%` | `28.48%` |
+| LiDAR-only continued fine-tune | `22.89%` | `20.27%` | `18.35%` | `19.53%` | `26.64%` | `26.85%` |
+
+`ipfp_detach` briefly spikes at `20k`, but the full validation lands below both
+zero-feature and learned-feature fused training. The LiDAR-only continued run
+does not recover the stage-2 baseline score after the extra schedule.
 
 ## Class-Wise IoU
 
@@ -123,17 +153,27 @@ from stage-2 fused training should not yet be attributed to learned image
 semantics. Replacing learned feature content with zeros still reaches `28.93%`
 mIoU, which is nearly identical to the original fused-training `29.04%`.
 
-The most likely explanation is that the current benefit is dominated by one or
-more of these factors:
+The LiDAR-only continued control is the decisive negative control: it reaches
+only `26.85%` mIoU, below the original `27.79%` LiDAR baseline. That rules out
+the simplest explanation that fused and zero-feature gains come only from
+another `30000` optimization steps.
 
-- Continuing from the stronger LiDAR checkpoint for another `30000` steps.
+The most likely explanation is therefore dominated by one or more of these
+fused-path effects:
+
 - The fused training path changing the sampled point distribution.
 - Added back-projected points acting as a geometric or regularization signal,
   even when their feature channels carry no image content.
+- Camera-visible point filtering changing which spatial regions are sampled
+  during training.
 
-The next decisive control is the queued LiDAR-only continued fine-tune. If it
-also approaches `28.9-29.0%`, then the current gain is mainly extra optimization
-time. If it stays near `27.8%`, then the fused path or added-point distribution
-is genuinely useful even without image features. The running `ipfp_detach`
-experiment will then indicate whether gradient coupling through IPFP is helping
-or simply adding noise.
+The detached branch result (`28.48%`) suggests that non-adaptive IPFP feature
+content is not helpful enough to beat the zero-feature path. The learned-feature
+fused run is still the best result by `0.11` mIoU over zero-feature, but this gap
+is too small to claim a robust semantic image-feature contribution without
+repeat seeds or a cleaner fused-inference path.
+
+The next useful work is to reduce the ablation set to the simplest strong
+variant: keep the fused path / added-point mechanism, remove or heavily gate
+image feature content, and run a second seed or shorter confirmation run before
+claiming a benchmark-scale improvement.
