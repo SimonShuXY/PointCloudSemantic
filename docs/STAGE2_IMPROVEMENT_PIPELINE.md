@@ -89,6 +89,27 @@ The stronger LiDAR-only run completed successfully:
 This improves over the stage-1 full sequence `08` LiDAR-only result of
 `19.01%` mIoU.
 
+## Final Fused-Training Result
+
+The recovery2 fused-training run completed successfully at `30000` steps. Its
+primary evaluation route is still LiDAR-only inference, matching the paper-style
+question of whether multimodal training improves a LiDAR model used at
+inference time.
+
+| Route | Eval route | Frames | mIoU | Overall accuracy | Mean loss |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Stage-2 stronger LiDAR-only | LiDAR-only | 4071 | `27.79%` | `75.59%` | `1.5952` |
+| Stage-2 fused training | LiDAR-only | 4071 | `29.04%` | `80.12%` | `1.5005` |
+| Stage-2 fused diagnostic | Fused | 4071 | `29.21%` | `80.15%` | `1.4922` |
+
+The fused-training route improves the primary LiDAR-only inference result by
+`+1.25` mIoU points and `+4.53` overall accuracy points over the stronger
+LiDAR-only baseline. The diagnostic fused-inference route recorded `4066`
+fallback counts, so it is not yet a clean fused-inference result.
+
+Full details, class-wise IoU, and visualizations are in
+[`docs/STAGE2_FULL_BENCHMARK_RESULTS.md`](STAGE2_FULL_BENCHMARK_RESULTS.md).
+
 ## Interpretation
 
 This stage should be read as a stronger validation benchmark, not yet an official

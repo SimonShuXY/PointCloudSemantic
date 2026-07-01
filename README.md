@@ -13,6 +13,8 @@ This repository contains:
 - `docs/EXPANDED_SPLIT_EXPERIMENTS.md`: larger split comparison with sampled mIoU.
 - `docs/IPFP_ABLATION_EXPERIMENTS.md`: diagnosis of IPFP extra-point and feature variants.
 - `docs/PAPER_ALIGNED_EXPERIMENTS.md`: paper-style evaluation/depth/loss diagnostic.
+- `docs/STAGE2_FULL_BENCHMARK_RESULTS.md`: completed SemanticKITTI sequence `08`
+  stage-2 benchmark with class-wise IoU and visualizations.
 
 ## What Is Implemented
 
@@ -98,6 +100,20 @@ Adding a scalar gate on the IPFP learned feature content changes the picture:
 
 The best current route is paper-aligned IPFP with `extra-feature-scale=0.1`,
 which beats the paper-aligned LiDAR-only control on this sampled split.
+
+The full SemanticKITTI sequence `08` stage-2 validation now shows a positive
+benchmark-scale signal:
+
+| Route | Eval route | Frames | mIoU | Overall acc | Mean loss |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Stage-2 LiDAR-only | LiDAR-only | 4071 | 27.79% | 75.59% | 1.5952 |
+| Stage-2 fused training | LiDAR-only | 4071 | 29.04% | 80.12% | 1.5005 |
+
+This supports the training-time IPFP/fusion route: multimodal training improves
+LiDAR-only inference by `+1.25` mIoU points over the stronger LiDAR-only
+baseline. The fused diagnostic route still falls back heavily, so fused
+inference itself remains a separate diagnosis target. See
+`docs/STAGE2_FULL_BENCHMARK_RESULTS.md`.
 
 Example 50-frame visualization:
 
